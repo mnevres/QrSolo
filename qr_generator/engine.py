@@ -1,5 +1,5 @@
 import qrcode
-from PIL import Image
+from PIL import Image, ImageOps
 from PyQt5.QtGui import QColor
 
 def make_custom_qr(data, fg_color="#000000", bg_color="#ffffff", is_transparent=False, is_svg=False, size=None):
@@ -43,16 +43,11 @@ def make_custom_qr(data, fg_color="#000000", bg_color="#ffffff", is_transparent=
         fg_rgba = (fg_q.red(), fg_q.green(), fg_q.blue(), 255)
         bg_rgba = (bg_q.red(), bg_q.green(), bg_q.blue(), 0 if is_transparent else 255)
         
-        # Create image with target background
+        # Create image with target background, then stamp the foreground color
+        # through the QR mask in one vectorized PIL call (fast even at 2000px)
         img = Image.new("RGBA", mask.size, bg_rgba)
-        
-        # Efficiently paint only the foreground bits
-        # Optimization: use load() for faster pixel access
-        mask_pixels = mask.load()
-        img_pixels = img.load()
-        for y in range(mask.size[1]):
-            for x in range(mask.size[0]):
-                if mask_pixels[x, y] < 128: # QR Module
-                    img_pixels[x, y] = fg_rgba
-        
+        fg_layer = Image.new("RGBA", mask.size, fg_rgba)
+        qr_mask = ImageOps.invert(mask)  # QR modules (dark in mask) -> opaque
+        img.paste(fg_layer, (0, 0), qr_mask)
+
         return img
