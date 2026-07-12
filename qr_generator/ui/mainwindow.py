@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QFra
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QColor, QImage
 from PyQt5.QtCore import Qt
 
+from qr_generator import __version__
 from qr_generator.database import Database
 from qr_generator.engine import make_custom_qr
 from qr_generator.utils import resource_path
@@ -19,9 +20,9 @@ class QRCodeGenerator(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle('QR Code Generator')
-        self.setMinimumSize(1000, 600)
-        self.resize(1000, 650)
+        self.setWindowTitle(f'QRSolo v{__version__}')
+        self.setMinimumSize(1060, 600)
+        self.resize(1060, 650)
         self.setWindowIcon(QIcon(resource_path('icon.png')))
         self.center()
 
@@ -34,7 +35,7 @@ class QRCodeGenerator(QMainWindow):
         self.sidebar_container = QFrame(self)
         self.sidebar_container.setObjectName("sidebar_container")
         self.sidebar_container.setFrameShape(QFrame.StyledPanel)
-        self.sidebar_container.setFixedWidth(280)
+        self.sidebar_container.setFixedWidth(340)
         self.sidebar_layout = QVBoxLayout(self.sidebar_container)
 
         self.sidebar_title = QLabel("Saved Items")
@@ -47,10 +48,10 @@ class QRCodeGenerator(QMainWindow):
             QLineEdit {
                 background-color: rgba(255, 255, 255, 0.08);
                 border-radius: 8px;
-                padding: 8px 12px;
+                padding: 0px 12px;
                 font-size: 13px;
                 margin-bottom: 5px;
-                min-height: 44px;
+                min-height: 32px;
                 border: 1px solid transparent;
             }
             QLineEdit:focus {
@@ -421,7 +422,7 @@ class QRCodeGenerator(QMainWindow):
             return
 
         try:
-            self.setWindowTitle(t.get('window_title', 'QR Code Generator'))
+            self.setWindowTitle(f"{t.get('window_title', 'QRSolo')} v{__version__}")
             self.tabs.setTabText(0, t.get('url_tab', 'URL'))
             self.tabs.setTabText(1, t.get('vcard_tab', 'VCard'))
             self.tabs.setTabText(2, t.get('bulk_tab', 'Bulk'))

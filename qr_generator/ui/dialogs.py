@@ -409,11 +409,11 @@ class AboutWindow(QDialog):
         self.creator_label = QLabel('Creator: Mehmet Nevresoğlu')
         self.layout.addWidget(self.creator_label)
 
-        self.contact_label = QLabel('Contact: <a href="mailto:mehmet.nvrs@gmail.com">mehmet.nvrs@gmail.com</a>')
+        self.contact_label = QLabel('Contact: <a href="mailto:mehmet@nevresoglu.net" style="color: #4da3ff;">mehmet@nevresoglu.net</a>')
         self.contact_label.setOpenExternalLinks(True)
         self.layout.addWidget(self.contact_label)
 
-        self.linkedin_label = QLabel('LinkedIn: <a href="https://www.linkedin.com/in/mehmet-nevresoglu-bb44341a/">Click here</a>')
+        self.linkedin_label = QLabel('LinkedIn: <a href="https://www.linkedin.com/in/mehmet-nevresoglu-bb44341a/" style="color: #4da3ff;">Click here</a>')
         self.linkedin_label.setOpenExternalLinks(True)
         self.layout.addWidget(self.linkedin_label)
 
@@ -426,14 +426,14 @@ class AboutWindow(QDialog):
         if language == 'Türkçe':
             self.setWindowTitle('Hakkında')
             self.creator_label.setText('Geliştirici: Mehmet Nevresoğlu')
-            self.contact_label.setText('İletişim: <a href="mailto:mehmet.nvrs@gmail.com">mehmet.nvrs@gmail.com</a>')
-            self.linkedin_label.setText('LinkedIn: <a href="https://www.linkedin.com/in/mehmet-nevresoglu-bb44341a/">Buraya tıklayın</a>')
+            self.contact_label.setText('İletişim: <a href="mailto:mehmet@nevresoglu.net" style="color: #4da3ff;">mehmet@nevresoglu.net</a>')
+            self.linkedin_label.setText('LinkedIn: <a href="https://www.linkedin.com/in/mehmet-nevresoglu-bb44341a/" style="color: #4da3ff;">Buraya tıklayın</a>')
             self.usage_label.setText('Bu programı kaynak belirttiğiniz sürece her yerde kullanabilirsiniz. Lisans gerektirmez.')
         else:
             self.setWindowTitle('About')
             self.creator_label.setText('Creator: Mehmet Nevresoğlu')
-            self.contact_label.setText('Contact: <a href="mailto:mehmet.nvrs@gmail.com">mehmet.nvrs@gmail.com</a>')
-            self.linkedin_label.setText('LinkedIn: <a href="https://www.linkedin.com/in/mehmet-nevresoglu-bb44341a/">Click here</a>')
+            self.contact_label.setText('Contact: <a href="mailto:mehmet@nevresoglu.net" style="color: #4da3ff;">mehmet@nevresoglu.net</a>')
+            self.linkedin_label.setText('LinkedIn: <a href="https://www.linkedin.com/in/mehmet-nevresoglu-bb44341a/" style="color: #4da3ff;">Click here</a>')
             self.usage_label.setText('You can use this program anywhere as long as you cite it as a reference. No license required.')
 
     def center(self):

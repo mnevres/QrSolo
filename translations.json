@@ -1,6 +1,6 @@
 {
   "English": {
-    "window_title": "QR Code Generator",
+    "window_title": "QRSolo",
     "url_tab": "URL",
     "vcard_tab": "VCard",
     "enter_url": "Enter URL:",
@@ -68,7 +68,7 @@
     "new_vcard_button": "New VCard"
   },
   "Türkçe": {
-    "window_title": "QR Kod Oluşturucu",
+    "window_title": "QRSolo",
     "url_tab": "URL",
     "vcard_tab": "VCard",
     "enter_url": "URL Girin:",
