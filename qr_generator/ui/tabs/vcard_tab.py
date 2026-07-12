@@ -159,7 +159,7 @@ class VCardTab(QWidget):
                     mw.db.update_vcard(self.editing_vcard_id, full_name, fn, ln, org, title, email, phone, mobile, url_vcard, vcard_text)
                 else:
                     self.editing_vcard_id = mw.db.add_vcard(full_name, fn, ln, org, title, email, phone, mobile, url_vcard, vcard_text)
-                mw.vcard_archive_window.load_archive()
+                mw.archive_window.load_archive()
                 mw.populate_sidebar()
                 mw.show_toast(mw.success_vcard_message)
         except Exception as e:

@@ -11,7 +11,7 @@ from qr_generator.database import Database
 from qr_generator.engine import make_custom_qr
 from qr_generator.utils import resource_path
 from qr_generator.ui.widgets import ToastNotification
-from qr_generator.ui.dialogs import SettingsWindow, URLArchiveWindow, VCardArchiveWindow, AboutWindow
+from qr_generator.ui.dialogs import SettingsWindow, ArchiveWindow, AboutWindow
 from qr_generator.ui.tabs.url_tab import URLTab
 from qr_generator.ui.tabs.vcard_tab import VCardTab
 from qr_generator.ui.tabs.bulk_tab import BulkTab
@@ -137,8 +137,7 @@ class QRCodeGenerator(QMainWindow):
         self.success_export_message = "Archive exported successfully."
         self.success_import_done_message = "Archive imported successfully."
 
-        self.url_archive_window = URLArchiveWindow(self)
-        self.vcard_archive_window = VCardArchiveWindow(self)
+        self.archive_window = ArchiveWindow(self)
         self.settings_window = SettingsWindow(self)
         self.about_window = AboutWindow(self)
 
@@ -451,10 +450,8 @@ class QRCodeGenerator(QMainWindow):
             if len(actions) > 2: actions[2].setText(t.get('about', 'About'))
 
             # Update archive windows manually
-            if hasattr(self, 'url_archive_window'):
-                self.url_archive_window.setWindowTitle(t.get('url_archive_title', 'URL Archive'))
-                self.url_archive_window.get_button.setText(t.get('retrieve_from_archive', 'Retrieve'))
-                self.url_archive_window.delete_button.setText(t.get('delete', 'Delete'))
+            if hasattr(self, 'archive_window'):
+                self.archive_window.update_language_ui(language)
 
             if hasattr(self, 'settings_window'): self.settings_window.update_language_ui(language)
             if hasattr(self, 'about_window'): self.about_window.update_language_ui(language)
@@ -512,9 +509,8 @@ class QRCodeGenerator(QMainWindow):
             logging.error(f"Preview error: {e}")
 
     def open_archive(self):
-        (self.open_url_archive if self.tabs.currentIndex()==0 else self.open_vcard_archive)()
-    def open_url_archive(self): self.url_archive_window.load_archive(); self.url_archive_window.show()
-    def open_vcard_archive(self): self.vcard_archive_window.load_archive(); self.vcard_archive_window.show()
+        self.archive_window.load_archive()
+        self.archive_window.show()
     def open_settings(self): self.settings_window.show()
     def open_about(self): self.about_window.show()
     def load_url(self, url):
@@ -605,5 +601,4 @@ class QRCodeGenerator(QMainWindow):
                 if self.editing_vcard_id == vcard_id:
                     self.editing_vcard_id = None
             self.populate_sidebar()
-            self.url_archive_window.load_archive()
-            self.vcard_archive_window.load_archive()
+            self.archive_window.load_archive()

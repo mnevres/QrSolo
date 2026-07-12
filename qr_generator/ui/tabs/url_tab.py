@@ -77,7 +77,7 @@ class URLTab(QWidget):
             if file_path:
                 mw.qr_img.save(file_path)
                 mw.db.add_url(url_text)
-                mw.url_archive_window.load_archive()
+                mw.archive_window.load_archive()
                 mw.populate_sidebar()
                 mw.show_toast(mw.success_qr_message)
         except Exception as e:

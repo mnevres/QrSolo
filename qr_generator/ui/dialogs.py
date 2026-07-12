@@ -208,23 +208,56 @@ class SettingsWindow(QDialog):
         self.transparency_check.setText(t.get('transparent_bg', 'Transparent Background'))
         self.sidebar_check.setText(t.get('show_sidebar', 'Show Archive Sidebar'))
 
-class URLArchiveWindow(QDialog):
+class ArchiveWindow(QDialog):
+    """Single archive dialog for both URLs and VCards, switched via a dropdown
+    instead of opening a different window depending on which tab was active."""
+
+    LIST_STYLE = """
+        QListWidget {
+            background-color: #1c1c1e;
+            color: #ffffff;
+            border: 1px solid #2c2c2e;
+            border-radius: 8px;
+            padding: 4px;
+        }
+        QListWidget::item {
+            padding: 6px;
+            border-radius: 4px;
+        }
+        QListWidget::item:hover {
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+        QListWidget::item:selected {
+            background-color: #007aff;
+            color: white;
+        }
+    """
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_obj = parent
-        self.setWindowTitle('URL Archive')
-        self.setGeometry(100, 100, 300, 400)
+        self.setWindowTitle('Archive')
+        self.setGeometry(100, 100, 340, 460)
         self.center()
-        
+
         self.layout = QVBoxLayout()
-        
-        self.url_list_widget = QListWidget()
-        self.layout.addWidget(self.url_list_widget)
-        
+
+        self.type_label = QLabel('Data Type:')
+        self.layout.addWidget(self.type_label)
+
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(['URL', 'VCard'])
+        self.type_combo.currentIndexChanged.connect(self.load_archive)
+        self.layout.addWidget(self.type_combo)
+
+        self.list_widget = QListWidget()
+        self.list_widget.setStyleSheet(self.LIST_STYLE)
+        self.layout.addWidget(self.list_widget)
+
         self.get_button = QPushButton('Retrieve from Archive')
         self.get_button.clicked.connect(self.return_selected)
         self.layout.addWidget(self.get_button)
-        
+
         self.delete_button = QPushButton('Delete')
         self.delete_button.clicked.connect(self.delete_selected)
         self.layout.addWidget(self.delete_button)
@@ -236,39 +269,77 @@ class URLArchiveWindow(QDialog):
         self.import_button = QPushButton('Import Archive from CSV')
         self.import_button.clicked.connect(self.import_from_csv)
         self.layout.addWidget(self.import_button)
-        
+
         self.setLayout(self.layout)
-        
+
         self.db = self.parent_obj.db
         self.load_archive()
-    
+
+    def is_url_mode(self):
+        return self.type_combo.currentIndex() == 0
+
     def load_archive(self):
-        self.url_list_widget.clear()
-        urls = self.db.get_urls()
-        self.url_list_widget.addItems([url[0] for url in urls])
+        self.list_widget.clear()
+        if self.is_url_mode():
+            for url_row in self.db.get_urls():
+                self.list_widget.addItem(url_row[0])
+        else:
+            for vcard in self.db.get_vcards():
+                item = QListWidgetItem(vcard[1])  # name
+                item.setData(Qt.UserRole, vcard[0])  # id
+                self.list_widget.addItem(item)
+        self.update_title()
+
+    def update_title(self):
+        current_language = getattr(self.parent_obj, 'current_language', 'English')
+        t = self.parent_obj.translations.get(
+            current_language, self.parent_obj.translations.get('English', {})
+        )
+        key = 'url_archive_title' if self.is_url_mode() else 'vcard_archive_title'
+        default = 'URL Archive' if self.is_url_mode() else 'VCard Archive'
+        self.setWindowTitle(t.get(key, default))
 
     def center(self):
         qr = self.frameGeometry()
         cp = QApplication.desktop().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
-    
+
     def return_selected(self):
-        selected_url = self.url_list_widget.currentItem()
-        if not selected_url:
+        item = self.list_widget.currentItem()
+        if not item:
             return
-        self.parent_obj.load_url(selected_url.text())
+        if self.is_url_mode():
+            self.parent_obj.load_url(item.text())
+            self.parent_obj.tabs.setCurrentIndex(0)
+        else:
+            vcard_id = item.data(Qt.UserRole)
+            for vcard in self.db.get_vcards():
+                if vcard[0] == vcard_id:
+                    self.parent_obj.load_vcard(*vcard)
+                    break
+            self.parent_obj.tabs.setCurrentIndex(1)
         self.close()
-    
+
     def delete_selected(self):
-        selected_url = self.url_list_widget.currentItem()
-        if selected_url:
-            self.db.delete_url(selected_url.text())
-            self.url_list_widget.takeItem(self.url_list_widget.row(selected_url))
+        item = self.list_widget.currentItem()
+        if not item:
+            return
+        if self.is_url_mode():
+            self.db.delete_url(item.text())
+        else:
+            vcard_id = item.data(Qt.UserRole)
+            self.db.delete_vcard(vcard_id)
+            if self.parent_obj.editing_vcard_id == vcard_id:
+                self.parent_obj.editing_vcard_id = None
+        self.list_widget.takeItem(self.list_widget.row(item))
+        self.parent_obj.populate_sidebar()
 
     def export_to_csv(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save CSV", "url_archive.csv", "CSV Files (*.csv)")
-        if path:
+        if self.is_url_mode():
+            path, _ = QFileDialog.getSaveFileName(self, "Save CSV", "url_archive.csv", "CSV Files (*.csv)")
+            if not path:
+                return
             try:
                 urls = self.db.get_urls()
                 with open(path, 'w', newline='', encoding='utf-8-sig') as f:
@@ -278,10 +349,25 @@ class URLArchiveWindow(QDialog):
                 self.parent_obj.show_toast(self.parent_obj.success_export_message)
             except Exception as e:
                 self.parent_obj.show_toast(f"Could not export: {e}", is_error=True)
+        else:
+            path, _ = QFileDialog.getSaveFileName(self, "Save CSV", "vcard_archive.csv", "CSV Files (*.csv)")
+            if not path:
+                return
+            try:
+                vcards = self.db.get_vcards()
+                with open(path, 'w', newline='', encoding='utf-8-sig') as f:
+                    writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+                    writer.writerow(["Name", "First Name", "Last Name", "Organization", "Title", "Email", "Phone", "Mobile", "Website", "VCard Text"])
+                    writer.writerows([v[1:] for v in vcards])  # skip internal id
+                self.parent_obj.show_toast(self.parent_obj.success_export_message)
+            except Exception as e:
+                self.parent_obj.show_toast(f"Could not export: {e}", is_error=True)
 
     def import_from_csv(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open CSV", "", "CSV Files (*.csv)")
-        if path:
+        if not path:
+            return
+        if self.is_url_mode():
             try:
                 with open(path, 'r', newline='', encoding='utf-8-sig') as f:
                     reader = csv.reader(f)
@@ -296,92 +382,7 @@ class URLArchiveWindow(QDialog):
                         self.parent_obj.show_toast("This is not a valid URL archive CSV.", is_error=True)
             except Exception as e:
                 self.parent_obj.show_toast(f"Could not import: {e}", is_error=True)
-
-class VCardArchiveWindow(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.parent_obj = parent
-        self.setWindowTitle('VCard Archive')
-        self.setGeometry(100, 100, 300, 400)
-        self.center()
-        
-        self.layout = QVBoxLayout()
-        
-        self.vcard_list_widget = QListWidget()
-        self.layout.addWidget(self.vcard_list_widget)
-        
-        self.get_button = QPushButton('Retrieve from Archive')
-        self.get_button.clicked.connect(self.return_selected)
-        self.layout.addWidget(self.get_button)
-        
-        self.delete_button = QPushButton('Delete')
-        self.delete_button.clicked.connect(self.delete_selected)
-        self.layout.addWidget(self.delete_button)
-
-        self.export_button = QPushButton('Export Archive to CSV')
-        self.export_button.clicked.connect(self.export_to_csv)
-        self.layout.addWidget(self.export_button)
-
-        self.import_button = QPushButton('Import Archive from CSV')
-        self.import_button.clicked.connect(self.import_from_csv)
-        self.layout.addWidget(self.import_button)
-        
-        self.setLayout(self.layout)
-        
-        self.db = self.parent_obj.db
-        self.load_archive()
-    
-    def load_archive(self):
-        self.vcard_list_widget.clear()
-        vcards = self.db.get_vcards()
-        for vcard in vcards:
-            item = QListWidgetItem(vcard[1])  # name
-            item.setData(Qt.UserRole, vcard[0])  # id
-            self.vcard_list_widget.addItem(item)
-
-    def center(self):
-        qr = self.frameGeometry()
-        cp = QApplication.desktop().availableGeometry().center()
-        qr.moveCenter(cp)
-        self.move(qr.topLeft())
-
-    def return_selected(self):
-        selected_item = self.vcard_list_widget.currentItem()
-        if not selected_item:
-            return
-        vcard_id = selected_item.data(Qt.UserRole)
-        vcards = self.db.get_vcards()
-        for vcard in vcards:
-            if vcard[0] == vcard_id:
-                self.parent_obj.load_vcard(*vcard)
-                break
-        self.close()
-
-    def delete_selected(self):
-        selected_item = self.vcard_list_widget.currentItem()
-        if selected_item:
-            vcard_id = selected_item.data(Qt.UserRole)
-            self.db.delete_vcard(vcard_id)
-            if self.parent_obj.editing_vcard_id == vcard_id:
-                self.parent_obj.editing_vcard_id = None
-            self.vcard_list_widget.takeItem(self.vcard_list_widget.row(selected_item))
-
-    def export_to_csv(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save CSV", "vcard_archive.csv", "CSV Files (*.csv)")
-        if path:
-            try:
-                vcards = self.db.get_vcards()
-                with open(path, 'w', newline='', encoding='utf-8-sig') as f:
-                    writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-                    writer.writerow(["Name", "First Name", "Last Name", "Organization", "Title", "Email", "Phone", "Mobile", "Website", "VCard Text"])
-                    writer.writerows([v[1:] for v in vcards])  # skip internal id
-                self.parent_obj.show_toast(self.parent_obj.success_export_message)
-            except Exception as e:
-                self.parent_obj.show_toast(f"Could not export: {e}", is_error=True)
-
-    def import_from_csv(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open CSV", "", "CSV Files (*.csv)")
-        if path:
+        else:
             try:
                 with open(path, 'r', newline='', encoding='utf-8-sig') as f:
                     reader = csv.reader(f)
@@ -396,6 +397,15 @@ class VCardArchiveWindow(QDialog):
                         self.parent_obj.show_toast("This is not a valid VCard archive CSV.", is_error=True)
             except Exception as e:
                 self.parent_obj.show_toast(f"Could not import: {e}", is_error=True)
+
+    def update_language_ui(self, language):
+        t = self.parent_obj.translations.get(language, self.parent_obj.translations.get('English', {}))
+        self.type_label.setText(t.get('bulk_type', 'Data Type:'))
+        self.get_button.setText(t.get('retrieve_from_archive', 'Retrieve from Archive'))
+        self.delete_button.setText(t.get('delete', 'Delete'))
+        self.export_button.setText(t.get('export_archive', 'Export Archive to CSV'))
+        self.import_button.setText(t.get('import_archive', 'Import Archive from CSV'))
+        self.update_title()
 
 class AboutWindow(QDialog):
     def __init__(self, parent=None):
