@@ -272,7 +272,7 @@ class URLArchiveWindow(QDialog):
             try:
                 urls = self.db.get_urls()
                 with open(path, 'w', newline='', encoding='utf-8-sig') as f:
-                    writer = csv.writer(f)
+                    writer = csv.writer(f, quoting=csv.QUOTE_ALL)
                     writer.writerow(["URL"])
                     writer.writerows(urls)
                 self.parent_obj.show_toast(self.parent_obj.success_export_message)
@@ -372,7 +372,7 @@ class VCardArchiveWindow(QDialog):
             try:
                 vcards = self.db.get_vcards()
                 with open(path, 'w', newline='', encoding='utf-8-sig') as f:
-                    writer = csv.writer(f)
+                    writer = csv.writer(f, quoting=csv.QUOTE_ALL)
                     writer.writerow(["Name", "First Name", "Last Name", "Organization", "Title", "Email", "Phone", "Mobile", "Website", "VCard Text"])
                     writer.writerows([v[1:] for v in vcards])  # skip internal id
                 self.parent_obj.show_toast(self.parent_obj.success_export_message)

@@ -199,7 +199,7 @@ class BulkTab(QWidget):
         if path:
             try:
                 with open(path, 'w', newline='', encoding='utf-8-sig') as f:
-                    writer = csv.writer(f)
+                    writer = csv.writer(f, quoting=csv.QUOTE_ALL)
                     writer.writerow(headers)
                     writer.writerows(sample_data)
                 mw.show_toast(mw.success_qr_message)
