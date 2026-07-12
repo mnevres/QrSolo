@@ -1,6 +1,7 @@
 import csv
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-                             QComboBox, QFrame, QLineEdit, QCheckBox, QListWidget, QFileDialog, QApplication)
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+                             QComboBox, QFrame, QLineEdit, QCheckBox, QListWidget, QListWidgetItem,
+                             QFileDialog, QApplication)
 from PyQt5.QtGui import QColor, QRegExpValidator
 from PyQt5.QtCore import Qt, QRegExp
 
@@ -334,31 +335,36 @@ class VCardArchiveWindow(QDialog):
         self.vcard_list_widget.clear()
         vcards = self.db.get_vcards()
         for vcard in vcards:
-            name = vcard[0]
-            self.vcard_list_widget.addItem(name)
+            item = QListWidgetItem(vcard[1])  # name
+            item.setData(Qt.UserRole, vcard[0])  # id
+            self.vcard_list_widget.addItem(item)
 
     def center(self):
         qr = self.frameGeometry()
         cp = QApplication.desktop().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
-    
+
     def return_selected(self):
-        selected_vcard = self.vcard_list_widget.currentItem()
-        if not selected_vcard:
+        selected_item = self.vcard_list_widget.currentItem()
+        if not selected_item:
             return
+        vcard_id = selected_item.data(Qt.UserRole)
         vcards = self.db.get_vcards()
         for vcard in vcards:
-            if vcard[0] == selected_vcard.text():
+            if vcard[0] == vcard_id:
                 self.parent_obj.load_vcard(*vcard)
                 break
         self.close()
-    
+
     def delete_selected(self):
-        selected_vcard = self.vcard_list_widget.currentItem()
-        if selected_vcard:
-            self.db.delete_vcard(selected_vcard.text())
-            self.vcard_list_widget.takeItem(self.vcard_list_widget.row(selected_vcard))
+        selected_item = self.vcard_list_widget.currentItem()
+        if selected_item:
+            vcard_id = selected_item.data(Qt.UserRole)
+            self.db.delete_vcard(vcard_id)
+            if self.parent_obj.editing_vcard_id == vcard_id:
+                self.parent_obj.editing_vcard_id = None
+            self.vcard_list_widget.takeItem(self.vcard_list_widget.row(selected_item))
 
     def export_to_csv(self):
         path, _ = QFileDialog.getSaveFileName(self, "Save CSV", "vcard_archive.csv", "CSV Files (*.csv)")
@@ -368,7 +374,7 @@ class VCardArchiveWindow(QDialog):
                 with open(path, 'w', newline='', encoding='utf-8-sig') as f:
                     writer = csv.writer(f)
                     writer.writerow(["Name", "First Name", "Last Name", "Organization", "Title", "Email", "Phone", "Mobile", "Website", "VCard Text"])
-                    writer.writerows(vcards)
+                    writer.writerows([v[1:] for v in vcards])  # skip internal id
                 self.parent_obj.show_toast(self.parent_obj.success_export_message)
             except Exception as e:
                 self.parent_obj.show_toast(f"Could not export: {e}", is_error=True)

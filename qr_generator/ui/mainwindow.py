@@ -4,11 +4,11 @@ import logging
 import json
 import csv
 import vobject
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QTabWidget, QFrame, QLabel, QMenuBar, QAction, 
-                             QLineEdit, QRadioButton, QButtonGroup, QFormLayout, 
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                             QTabWidget, QFrame, QLabel, QMenuBar, QAction,
+                             QLineEdit, QRadioButton, QButtonGroup, QFormLayout,
                              QPushButton, QComboBox, QFileDialog, QApplication,
-                             QListWidget)
+                             QListWidget, QListWidgetItem)
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QColor, QRegExpValidator, QImage
 from PyQt5.QtCore import Qt, QRegExp
 
@@ -126,6 +126,7 @@ class QRCodeGenerator(QMainWindow):
         self.db = Database()
         self.img_size = 1000
         self.qr_img = None
+        self.editing_vcard_id = None
         self.show_sidebar = True
         self.translations = {}
         self.load_translations()
@@ -343,6 +344,16 @@ class QRCodeGenerator(QMainWindow):
                 background: #3a3a3c;
                 color: #ffffff;
             }
+            #clear_vcard_btn {
+                background: #2c2c2e;
+                color: #007AFF;
+                border: 1px solid #3a3a3c;
+                min-width: 90px;
+            }
+            #clear_vcard_btn:hover {
+                background: #3a3a3c;
+                color: #ffffff;
+            }
         """)
         self.tabs.setUsesScrollButtons(False)
         self.tabs.setDocumentMode(False)
@@ -436,6 +447,7 @@ class QRCodeGenerator(QMainWindow):
             self.mobile_label.setText(t.get('mobile_phone', 'Mobile Phone'))
             self.url_vcard_label.setText(t.get('url_website', 'Url/WebSite'))
             self.generate_button_vcard.setText(t.get('generate_button_vcard', 'Generate VCard'))
+            self.clear_vcard_btn.setText(t.get('new_vcard_button', 'New VCard'))
 
             self.bulk_title.setText(t.get('bulk_title', 'Bulk QR Generation'))
             self.bulk_desc.setText(t.get('bulk_desc', 'Description text'))
@@ -765,10 +777,18 @@ class QRCodeGenerator(QMainWindow):
         radio_layout.addStretch()
         export_section.addLayout(radio_layout)
 
+        vcard_buttons_layout = QHBoxLayout()
         self.generate_button_vcard = QPushButton('Save VCard')
         self.generate_button_vcard.clicked.connect(self.generate_vcard_qr_code)
-        export_section.addWidget(self.generate_button_vcard)
-        
+        vcard_buttons_layout.addWidget(self.generate_button_vcard, stretch=1)
+
+        self.clear_vcard_btn = QPushButton('New VCard')
+        self.clear_vcard_btn.setObjectName("clear_vcard_btn")
+        self.clear_vcard_btn.clicked.connect(self.clear_vcard_form)
+        vcard_buttons_layout.addWidget(self.clear_vcard_btn)
+
+        export_section.addLayout(vcard_buttons_layout)
+
         layout.addLayout(export_section)
         layout.addStretch()
         
@@ -848,7 +868,10 @@ class QRCodeGenerator(QMainWindow):
             if file_path:
                 self.qr_img.save(file_path)
                 full_name = " ".join(f"{fn} {ln}".split()) # Normalize spaces
-                self.db.add_vcard(full_name, fn, ln, org, title, email, phone, mobile, url_vcard, vcard_text)
+                if self.editing_vcard_id is not None:
+                    self.db.update_vcard(self.editing_vcard_id, full_name, fn, ln, org, title, email, phone, mobile, url_vcard, vcard_text)
+                else:
+                    self.editing_vcard_id = self.db.add_vcard(full_name, fn, ln, org, title, email, phone, mobile, url_vcard, vcard_text)
                 self.vcard_archive_window.load_archive()
                 self.populate_sidebar()
                 self.show_toast(self.success_vcard_message)
@@ -856,6 +879,18 @@ class QRCodeGenerator(QMainWindow):
             logging.error("Error generating or saving VCard: %s", e, exc_info=True)
             print(f"VCARD ERROR: {e}")
             self.show_toast(self.error_message, is_error=True)
+
+    def clear_vcard_form(self):
+        self.editing_vcard_id = None
+        self.fn_input.clear()
+        self.ln_input.clear()
+        self.org_input.clear()
+        self.title_input.clear()
+        self.email_input.clear()
+        self.phone_input.clear()
+        self.mobile_input.clear()
+        self.url_input_vcard.clear()
+        self.update_preview()
 
     def _get_checkerboard_pattern(self, size=240):
         tile_size = 10
@@ -909,7 +944,8 @@ class QRCodeGenerator(QMainWindow):
         self.url_input.setText(url)
         self.update_preview()
 
-    def load_vcard(self, name, fn, ln, org, title, email, phone, mobile, url, vcard):
+    def load_vcard(self, vcard_id, name, fn, ln, org, title, email, phone, mobile, url, vcard):
+        self.editing_vcard_id = vcard_id
         self.fn_input.setText(fn)
         self.ln_input.setText(ln)
         self.org_input.setText(org)
@@ -961,29 +997,24 @@ class QRCodeGenerator(QMainWindow):
             self.sidebar_title.setText(t.get('vcard_archive_list', 'Saved VCards'))
             vcards = self.db.get_vcards()
             for vcard_row in vcards:
-                self.sidebar_list.addItem(vcard_row[0]) # name
+                item = QListWidgetItem(vcard_row[1]) # name
+                item.setData(Qt.UserRole, vcard_row[0]) # id
+                self.sidebar_list.addItem(item)
         
         self.filter_sidebar() # Re-apply search filter if any
 
     def load_from_sidebar(self, item):
-        name = item.text()
         tab = self.tabs.currentIndex()
         if tab == 0:
-            self.url_input.setText(name)
+            self.url_input.setText(item.text())
+            self.update_preview()
         elif tab == 1:
+            vcard_id = item.data(Qt.UserRole)
             vcards = self.db.get_vcards()
             for v in vcards:
-                if v[0] == name:
-                    self.fn_input.setText(v[1])
-                    self.ln_input.setText(v[2])
-                    self.org_input.setText(v[3])
-                    self.title_input.setText(v[4])
-                    self.email_input.setText(v[5])
-                    self.phone_input.setText(v[6])
-                    self.mobile_input.setText(v[7])
-                    self.url_input_vcard.setText(v[8])
+                if v[0] == vcard_id:
+                    self.load_vcard(*v)
                     break
-        self.update_preview()
 
     def show_sidebar_context_menu(self, pos):
         item = self.sidebar_list.itemAt(pos)
@@ -998,12 +1029,14 @@ class QRCodeGenerator(QMainWindow):
         action = menu.exec_(self.sidebar_list.mapToGlobal(pos))
         
         if action == delete_action:
-            name = item.text()
             tab = self.tabs.currentIndex()
             if tab == 0:
-                self.db.delete_url(name)
+                self.db.delete_url(item.text())
             else:
-                self.db.delete_vcard(name)
+                vcard_id = item.data(Qt.UserRole)
+                self.db.delete_vcard(vcard_id)
+                if self.editing_vcard_id == vcard_id:
+                    self.editing_vcard_id = None
             self.populate_sidebar()
             self.url_archive_window.load_archive()
             self.vcard_archive_window.load_archive()
