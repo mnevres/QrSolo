@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Build artifacts
+build/
+dist/
+*.spec.bak
+
+# Runtime data
+*.db
+*.log
+error_log.txt
+
+# Editor
+.vscode/
+.idea/
+
+# Old backups (kept locally, not tracked)
+yedek_py.txt
+yedek_spec.txt
+test_vcard.svg
