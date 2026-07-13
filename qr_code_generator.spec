@@ -6,7 +6,7 @@ a = Analysis(
     ['qr_code_generator.py'],
     pathex=['.'],
     binaries=[],
-    datas=[('icon.png', 'icon.png'), ('translations.json', 'translations.json')],
+    datas=[('icon.png', '.'), ('translations.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -31,7 +31,7 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
-    icon='icon.png',
+    icon='qr-code.ico',
 )
 
 coll = COLLECT(

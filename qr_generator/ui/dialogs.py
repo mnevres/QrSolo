@@ -112,25 +112,30 @@ class SettingsWindow(QDialog):
             if resolution:
                 self.resolution_input.setText(str(resolution))
                 self.label_dimensions.setText(f'Current Resolution: {resolution} x {resolution} px')
-            
-            fg = settings[2] if len(settings) > 2 else "#000000"
-            bg = settings[3] if len(settings) > 3 else "#ffffff"
+
+            self.fg_color = settings[2] if len(settings) > 2 and settings[2] else "#000000"
+            self.bg_color = settings[3] if len(settings) > 3 and settings[3] else "#ffffff"
             trans = settings[4] if len(settings) > 4 else 0
             sidebar = settings[5] if len(settings) > 5 else 1
-            
-            self.fg_color = fg
-            self.bg_color = bg
-            self.fg_color_btn.setStyleSheet(f"background-color: {fg}; color: {'white' if QColor(fg).lightness() < 128 else 'black'};")
-            self.bg_color_btn.setStyleSheet(f"background-color: {bg}; color: {'white' if QColor(bg).lightness() < 128 else 'black'};")
-            
-            self.transparency_check.blockSignals(True)
-            self.sidebar_check.blockSignals(True)
-            self.transparency_check.setChecked(bool(trans))
-            self.sidebar_check.setChecked(bool(sidebar))
-            self.transparency_check.blockSignals(False)
-            self.sidebar_check.blockSignals(False)
-            
-            self.update_ui_states()
+        else:
+            # No settings row yet (fresh install): keep the __init__ defaults
+            # and make sure the checkboxes reflect them, otherwise Qt's default
+            # unchecked state would get saved as "off" the moment anything
+            # here triggers save_all_settings().
+            trans = 0
+            sidebar = 1
+
+        self.fg_color_btn.setStyleSheet(f"background-color: {self.fg_color}; color: {'white' if QColor(self.fg_color).lightness() < 128 else 'black'};")
+        self.bg_color_btn.setStyleSheet(f"background-color: {self.bg_color}; color: {'white' if QColor(self.bg_color).lightness() < 128 else 'black'};")
+
+        self.transparency_check.blockSignals(True)
+        self.sidebar_check.blockSignals(True)
+        self.transparency_check.setChecked(bool(trans))
+        self.sidebar_check.setChecked(bool(sidebar))
+        self.transparency_check.blockSignals(False)
+        self.sidebar_check.blockSignals(False)
+
+        self.update_ui_states()
 
     def on_transparency_toggled(self):
         self.update_ui_states()
