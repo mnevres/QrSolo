@@ -527,6 +527,12 @@ class QRCodeGenerator(QMainWindow):
             logging.error(f"Preview error: {e}")
 
     def open_archive(self):
+        # Default the archive dropdown to match the tab you're on (URL/VCard),
+        # so opening it from VCard doesn't silently show the URL list first.
+        # Other tabs (WiFi/Email/Bulk) leave whatever mode was last selected.
+        tab = self.tabs.currentIndex()
+        if tab in (0, 1):
+            self.archive_window.type_combo.setCurrentIndex(tab)
         self.archive_window.load_archive()
         self.archive_window.show()
     def open_settings(self): self.settings_window.show()
