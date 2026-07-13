@@ -69,7 +69,7 @@ class URLTab(QWidget):
                 return
 
             is_svg = not self.png_radio_url.isChecked()
-            mw.qr_img = make_custom_qr(url_text, fg_color=mw.fg_color, bg_color=mw.bg_color, is_transparent=mw.is_transparent, is_svg=is_svg, size=mw.img_size)
+            mw.qr_img = make_custom_qr(url_text, fg_color=mw.fg_color, bg_color=mw.bg_color, is_transparent=mw.is_transparent, is_svg=is_svg, size=mw.img_size, logo_path=mw.logo_path)
 
             filename = f"{sanitize_filename(url_text)}_qr" + (".svg" if is_svg else ".png")
             file_type = "SVG Files (*.svg)" if is_svg else "PNG Files (*.png)"

@@ -1,3 +1,4 @@
+import os
 import logging
 import json
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QFrame,
@@ -14,6 +15,8 @@ from qr_generator.ui.widgets import ToastNotification
 from qr_generator.ui.dialogs import SettingsWindow, ArchiveWindow, AboutWindow
 from qr_generator.ui.tabs.url_tab import URLTab
 from qr_generator.ui.tabs.vcard_tab import VCardTab
+from qr_generator.ui.tabs.wifi_tab import WiFiTab
+from qr_generator.ui.tabs.email_tab import EmailTab
 from qr_generator.ui.tabs.bulk_tab import BulkTab
 
 class QRCodeGenerator(QMainWindow):
@@ -92,10 +95,14 @@ class QRCodeGenerator(QMainWindow):
 
         self.url_tab = URLTab(self)
         self.vcard_tab = VCardTab(self)
+        self.wifi_tab = WiFiTab(self)
+        self.email_tab = EmailTab(self)
         self.bulk_tab = BulkTab(self)
 
         self.tabs.addTab(self.url_tab, "URL")
         self.tabs.addTab(self.vcard_tab, "VCard")
+        self.tabs.addTab(self.wifi_tab, "WiFi")
+        self.tabs.addTab(self.email_tab, "Email")
         self.tabs.addTab(self.bulk_tab, "Bulk")
 
         # Add buttons
@@ -121,6 +128,7 @@ class QRCodeGenerator(QMainWindow):
         self.img_size = 1000
         self.qr_img = None
         self.show_sidebar = True
+        self.logo_path = None
         self.translations = {}
         self.load_translations()
 
@@ -132,6 +140,8 @@ class QRCodeGenerator(QMainWindow):
         self.input_error_message = "Please enter a valid number between 100 and 2000."
         self.url_error_message = "Please enter a URL."
         self.vcard_error_message = "Please enter first and last name."
+        self.wifi_ssid_error_message = "Please enter a network name."
+        self.email_error_message = "Please enter an email address."
         self.error_message = "An error occurred."
         self.duplicate_vcard_message = "This VCard already exists in the archive."
         self.success_export_message = "Archive exported successfully."
@@ -403,6 +413,7 @@ class QRCodeGenerator(QMainWindow):
             self.bg_color = settings[3] if len(settings) > 3 and settings[3] else "#ffffff"
             self.is_transparent = bool(settings[4]) if len(settings) > 4 else False
             self.show_sidebar = bool(settings[5]) if len(settings) > 5 else True
+            self.logo_path = settings[6] if len(settings) > 6 and settings[6] and os.path.isfile(settings[6]) else None
         else:
             self.current_language = 'English'
             self.img_size = 1000
@@ -410,6 +421,7 @@ class QRCodeGenerator(QMainWindow):
             self.bg_color = "#ffffff"
             self.is_transparent = False
             self.show_sidebar = True
+            self.logo_path = None
 
         self.set_language(self.current_language)
         self.update_sidebar_visibility()
@@ -424,13 +436,17 @@ class QRCodeGenerator(QMainWindow):
             self.setWindowTitle(f"{t.get('window_title', 'QRSolo')} v{__version__}")
             self.tabs.setTabText(0, t.get('url_tab', 'URL'))
             self.tabs.setTabText(1, t.get('vcard_tab', 'VCard'))
-            self.tabs.setTabText(2, t.get('bulk_tab', 'Bulk'))
+            self.tabs.setTabText(2, t.get('wifi_tab', 'WiFi'))
+            self.tabs.setTabText(3, t.get('email_tab', 'Email'))
+            self.tabs.setTabText(4, t.get('bulk_tab', 'Bulk'))
 
             self.sidebar_search.setPlaceholderText(t.get('search_placeholder', 'Search...'))
             self.populate_sidebar()
 
             self.url_tab.update_language_ui(t)
             self.vcard_tab.update_language_ui(t)
+            self.wifi_tab.update_language_ui(t)
+            self.email_tab.update_language_ui(t)
             self.bulk_tab.update_language_ui(t)
 
             self.success_language_message = t.get('success_language', 'Language set.')
@@ -440,6 +456,8 @@ class QRCodeGenerator(QMainWindow):
             self.input_error_message = t.get('input_error', 'Invalid input.')
             self.url_error_message = t.get('url_error', 'Enter URL.')
             self.vcard_error_message = t.get('vcard_error', 'Enter name.')
+            self.wifi_ssid_error_message = t.get('wifi_ssid_error', 'Enter a network name.')
+            self.email_error_message = t.get('email_error', 'Enter an email address.')
             self.error_message = t.get('error_generic', 'Error.')
             self.duplicate_vcard_message = t.get('duplicate_vcard', 'Duplicate.')
 
@@ -482,7 +500,7 @@ class QRCodeGenerator(QMainWindow):
             tab = self.tabs.currentIndex()
             self.update_sidebar_visibility()
 
-            if tab == 2:
+            if tab not in (0, 1):
                 return
 
             self.populate_sidebar()
@@ -493,7 +511,7 @@ class QRCodeGenerator(QMainWindow):
                 self.preview_label.setText(self.preview_placeholder)
                 return
 
-            img = make_custom_qr(data, fg_color=self.fg_color, bg_color=self.bg_color, is_transparent=self.is_transparent, is_svg=False, size=240)
+            img = make_custom_qr(data, fg_color=self.fg_color, bg_color=self.bg_color, is_transparent=self.is_transparent, is_svg=False, size=240, logo_path=self.logo_path)
             if self.is_transparent:
                 qimg = QImage(img.tobytes("raw", "RGBA"), img.size[0], img.size[1], QImage.Format_RGBA8888)
                 base = self._get_checkerboard_pattern(240)
@@ -528,7 +546,7 @@ class QRCodeGenerator(QMainWindow):
 
     def update_sidebar_visibility(self):
         tab = self.tabs.currentIndex()
-        is_visible = self.show_sidebar and tab != 2
+        is_visible = self.show_sidebar and tab in (0, 1)
 
         if is_visible:
             # Move shared widgets to current tab's horizontal layout

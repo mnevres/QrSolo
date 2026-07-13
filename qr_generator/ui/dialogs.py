@@ -1,4 +1,6 @@
 import csv
+import os
+import shutil
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                              QComboBox, QFrame, QLineEdit, QCheckBox, QListWidget, QListWidgetItem,
                              QFileDialog, QApplication)
@@ -18,6 +20,7 @@ class SettingsWindow(QDialog):
         self.bg_color = "#ffffff"
         self.is_transparent = False
         self.show_sidebar = True
+        self.logo_path = None
 
         self.layout = QVBoxLayout()
         
@@ -97,7 +100,27 @@ class SettingsWindow(QDialog):
         self.sidebar_check.setStyleSheet("color: white; font-weight: bold;")
         self.sidebar_check.stateChanged.connect(self.save_all_settings)
         self.layout.addWidget(self.sidebar_check)
-        
+
+        self.layout.addWidget(self.separator)
+
+        # Logo
+        self.logo_title = QLabel("QR Logo")
+        self.logo_title.setFont(font)
+        self.layout.addWidget(self.logo_title)
+
+        logo_buttons_layout = QHBoxLayout()
+        self.logo_select_btn = QPushButton("Select Logo")
+        self.logo_select_btn.clicked.connect(self.pick_logo)
+        self.logo_clear_btn = QPushButton("Remove")
+        self.logo_clear_btn.clicked.connect(self.clear_logo)
+        logo_buttons_layout.addWidget(self.logo_select_btn)
+        logo_buttons_layout.addWidget(self.logo_clear_btn)
+        self.layout.addLayout(logo_buttons_layout)
+
+        self.logo_status_label = QLabel("No logo selected")
+        self.logo_status_label.setStyleSheet("color: #8e8e93; font-size: 12px;")
+        self.layout.addWidget(self.logo_status_label)
+
         self.setLayout(self.layout)
         
         self.load_settings()
@@ -117,6 +140,7 @@ class SettingsWindow(QDialog):
             self.bg_color = settings[3] if len(settings) > 3 and settings[3] else "#ffffff"
             trans = settings[4] if len(settings) > 4 else 0
             sidebar = settings[5] if len(settings) > 5 else 1
+            self.logo_path = settings[6] if len(settings) > 6 and settings[6] and os.path.isfile(settings[6]) else None
         else:
             # No settings row yet (fresh install): keep the __init__ defaults
             # and make sure the checkboxes reflect them, otherwise Qt's default
@@ -134,6 +158,8 @@ class SettingsWindow(QDialog):
         self.sidebar_check.setChecked(bool(sidebar))
         self.transparency_check.blockSignals(False)
         self.sidebar_check.blockSignals(False)
+
+        self.logo_status_label.setText(os.path.basename(self.logo_path) if self.logo_path else "No logo selected")
 
         self.update_ui_states()
 
@@ -167,16 +193,35 @@ class SettingsWindow(QDialog):
             self.bg_color_btn.setStyleSheet(f"background-color: {self.bg_color}; color: {'white' if color.lightness() < 128 else 'black'};")
             self.save_all_settings()
 
+    def pick_logo(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Logo", "", "Images (*.png *.jpg *.jpeg *.bmp)")
+        if path:
+            try:
+                ext = os.path.splitext(path)[1] or '.png'
+                db_dir = os.path.dirname(os.path.abspath(self.parent_obj.db.db_name))
+                dest = os.path.join(db_dir, f"qr_logo{ext}")
+                shutil.copyfile(path, dest)
+                self.logo_path = dest
+                self.logo_status_label.setText(os.path.basename(path))
+                self.save_all_settings()
+            except Exception as e:
+                self.parent_obj.show_toast(f"Could not set logo: {e}", is_error=True)
+
+    def clear_logo(self):
+        self.logo_path = None
+        self.logo_status_label.setText("No logo selected")
+        self.save_all_settings()
+
     def save_all_settings(self):
         lang = self.language_combo.currentText()
         try:
             res = int(self.resolution_input.text())
         except (ValueError, TypeError):
             res = self.parent_obj.img_size
-        
+
         trans = 1 if self.transparency_check.isChecked() else 0
         sidebar = 1 if self.sidebar_check.isChecked() else 0
-        self.parent_obj.db.set_settings(lang, res, self.fg_color, self.bg_color, trans, sidebar)
+        self.parent_obj.db.set_settings(lang, res, self.fg_color, self.bg_color, trans, sidebar, self.logo_path)
         self.parent_obj.load_settings() # Reload in main window
         self.parent_obj.update_preview()
 
@@ -212,6 +257,11 @@ class SettingsWindow(QDialog):
         self.bg_color_btn.setText(t.get('select_color', 'Select Color'))
         self.transparency_check.setText(t.get('transparent_bg', 'Transparent Background'))
         self.sidebar_check.setText(t.get('show_sidebar', 'Show Archive Sidebar'))
+        self.logo_title.setText(t.get('logo_title', 'QR Logo'))
+        self.logo_select_btn.setText(t.get('logo_select', 'Select Logo'))
+        self.logo_clear_btn.setText(t.get('logo_remove', 'Remove'))
+        if not self.logo_path:
+            self.logo_status_label.setText(t.get('logo_none', 'No logo selected'))
 
 class ArchiveWindow(QDialog):
     """Single archive dialog for both URLs and VCards, switched via a dropdown

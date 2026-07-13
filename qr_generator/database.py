@@ -27,6 +27,9 @@ class Database:
             try:
                 conn.execute("ALTER TABLE settings ADD COLUMN show_sidebar INTEGER DEFAULT 1")
             except sqlite3.OperationalError: pass
+            try:
+                conn.execute("ALTER TABLE settings ADD COLUMN logo_path TEXT")
+            except sqlite3.OperationalError: pass
 
             # Migration: vcard identity used to be the UNIQUE `name` column, which
             # silently merged different people sharing a name. Drop that constraint
@@ -79,10 +82,10 @@ class Database:
 
     def get_settings(self):
         with sqlite3.connect(self.db_name) as conn:
-            return conn.execute("SELECT language, resolution, fg_color, bg_color, is_transparent, show_sidebar FROM settings WHERE id=1").fetchone()
+            return conn.execute("SELECT language, resolution, fg_color, bg_color, is_transparent, show_sidebar, logo_path FROM settings WHERE id=1").fetchone()
 
-    def set_settings(self, language, resolution, fg_color="#000000", bg_color="#ffffff", is_transparent=0, show_sidebar=1):
+    def set_settings(self, language, resolution, fg_color="#000000", bg_color="#ffffff", is_transparent=0, show_sidebar=1, logo_path=None):
         with sqlite3.connect(self.db_name) as conn:
-            conn.execute('''INSERT OR REPLACE INTO settings (id, language, resolution, fg_color, bg_color, is_transparent, show_sidebar)
-                                 VALUES (1, ?, ?, ?, ?, ?, ?)''', (language, resolution, fg_color, bg_color, is_transparent, show_sidebar))
+            conn.execute('''INSERT OR REPLACE INTO settings (id, language, resolution, fg_color, bg_color, is_transparent, show_sidebar, logo_path)
+                                 VALUES (1, ?, ?, ?, ?, ?, ?, ?)''', (language, resolution, fg_color, bg_color, is_transparent, show_sidebar, logo_path))
             conn.commit()

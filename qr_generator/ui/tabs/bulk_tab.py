@@ -134,7 +134,7 @@ class BulkTab(QWidget):
                         if row:
                             url = row[0]
                             filename = f"{sanitize_filename(url)}_qrcode" + ext
-                            img = make_custom_qr(url, fg_color=mw.fg_color, bg_color=mw.bg_color, is_transparent=mw.is_transparent, is_svg=is_svg)
+                            img = make_custom_qr(url, fg_color=mw.fg_color, bg_color=mw.bg_color, is_transparent=mw.is_transparent, is_svg=is_svg, logo_path=mw.logo_path)
                             file_path = os.path.join(output_dir, filename)
                             img.save(file_path)
                             logging.info(f"Bulk saved URL QR: {file_path}")
@@ -171,7 +171,7 @@ class BulkTab(QWidget):
                                 vcard_text = vcard_obj.serialize()
                                 name_for_file = f"{fn}_{ln}".strip('_') if fn or ln else f"vcard_{count}"
                                 filename = f"{sanitize_filename(name_for_file)}_vcard" + ext
-                                img = make_custom_qr(vcard_text, fg_color=mw.fg_color, bg_color=mw.bg_color, is_transparent=mw.is_transparent, is_svg=is_svg)
+                                img = make_custom_qr(vcard_text, fg_color=mw.fg_color, bg_color=mw.bg_color, is_transparent=mw.is_transparent, is_svg=is_svg, logo_path=mw.logo_path)
                                 file_path = os.path.join(output_dir, filename)
                                 img.save(file_path)
                                 logging.info(f"Bulk saved VCard QR: {file_path}")
