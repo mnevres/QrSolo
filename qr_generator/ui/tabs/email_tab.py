@@ -1,10 +1,22 @@
 import logging
 from urllib.parse import quote
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-                             QLineEdit, QRadioButton, QButtonGroup, QPushButton, QFileDialog)
+                             QLineEdit, QPlainTextEdit, QRadioButton, QButtonGroup, QPushButton, QFileDialog)
 
 from qr_generator.engine import make_custom_qr
 from qr_generator.utils import sanitize_filename
+
+
+def build_email_uri(to, subject, message):
+    uri = f"mailto:{to}"
+    params = []
+    if subject:
+        params.append(f"subject={quote(subject)}")
+    if message:
+        params.append(f"body={quote(message)}")
+    if params:
+        uri += "?" + "&".join(params)
+    return uri
 
 
 class EmailTab(QWidget):
@@ -33,7 +45,24 @@ class EmailTab(QWidget):
         form_layout.addRow(self.subject_label, self.subject_input)
 
         self.message_label = QLabel('Message')
-        self.message_input = QLineEdit()
+        self.message_input = QPlainTextEdit()
+        self.message_input.setFixedHeight(100)
+        # QPlainTextEdit isn't covered by the global QLineEdit stylesheet rule,
+        # so its look has to be matched here by hand.
+        self.message_input.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #1c1c1e;
+                color: #ffffff;
+                border: 1px solid #2c2c2e;
+                padding: 8px 12px;
+                border-radius: 10px;
+                font-size: 14px;
+            }
+            QPlainTextEdit:focus {
+                border: 1px solid #007AFF;
+                background-color: #222226;
+            }
+        """)
         form_layout.addRow(self.message_label, self.message_input)
 
         layout.addLayout(form_layout)
@@ -55,10 +84,14 @@ class EmailTab(QWidget):
         radio_layout.addStretch()
         export_section.addLayout(radio_layout)
 
-        email_buttons_layout = QHBoxLayout()
+        # Stacked instead of side-by-side -- same fix as the WiFi tab, since
+        # splitting this narrow column between two buttons clipped "Save
+        # Email QR" once its label got uppercased by the global style.
+        email_buttons_layout = QVBoxLayout()
+        email_buttons_layout.setSpacing(10)
         self.generate_button_email = QPushButton('Save Email QR')
         self.generate_button_email.clicked.connect(self.generate_qr_code)
-        email_buttons_layout.addWidget(self.generate_button_email, stretch=1)
+        email_buttons_layout.addWidget(self.generate_button_email)
 
         self.clear_email_btn = QPushButton('New Email')
         self.clear_email_btn.setObjectName("clear_vcard_btn")
@@ -87,17 +120,8 @@ class EmailTab(QWidget):
     def build_email_uri(self):
         to = self.to_input.text().strip()
         subject = self.subject_input.text().strip()
-        message = self.message_input.text().strip()
-
-        uri = f"mailto:{to}"
-        params = []
-        if subject:
-            params.append(f"subject={quote(subject)}")
-        if message:
-            params.append(f"body={quote(message)}")
-        if params:
-            uri += "?" + "&".join(params)
-        return uri
+        message = self.message_input.toPlainText().strip()
+        return build_email_uri(to, subject, message)
 
     def clear_email_form(self):
         self.editing_email_id = None
@@ -110,7 +134,7 @@ class EmailTab(QWidget):
         self.editing_email_id = email_id
         self.to_input.setText(to_address)
         self.subject_input.setText(subject)
-        self.message_input.setText(message)
+        self.message_input.setPlainText(message)
         self.main_window.update_preview()
 
     def generate_qr_code(self):
@@ -132,7 +156,7 @@ class EmailTab(QWidget):
             if file_path:
                 mw.qr_img.save(file_path)
                 subject = self.subject_input.text().strip()
-                message = self.message_input.text().strip()
+                message = self.message_input.toPlainText().strip()
                 if self.editing_email_id is not None:
                     mw.db.update_email(self.editing_email_id, to, subject, message)
                 else:

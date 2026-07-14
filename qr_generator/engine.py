@@ -12,9 +12,13 @@ def _add_logo_to_png(img, logo_path):
     logo = Image.open(logo_path).convert("RGBA")
     qr_w, qr_h = img.size
     logo_size = int(qr_w * 0.22)
-    logo = logo.resize((logo_size, logo_size), Image.LANCZOS)
+    # Fit within the logo_size square instead of stretching to fill it, so
+    # non-square logos keep their real proportions.
+    logo = ImageOps.contain(logo, (logo_size, logo_size), Image.LANCZOS)
+    logo_w, logo_h = logo.size
 
-    # White backing square behind the logo so it stands out from the QR
+    # White backing square sized off the target footprint (not the logo's
+    # actual post-contain size) behind the logo so it stands out from the QR
     # pattern and stays legible regardless of the logo's own transparency.
     pad = int(logo_size * 0.08)
     box_size = logo_size + pad * 2
@@ -22,7 +26,7 @@ def _add_logo_to_png(img, logo_path):
     backing = Image.new("RGBA", (box_size, box_size), (255, 255, 255, 255))
     img.paste(backing, box_pos, backing)
 
-    logo_pos = ((qr_w - logo_size) // 2, (qr_h - logo_size) // 2)
+    logo_pos = ((qr_w - logo_w) // 2, (qr_h - logo_h) // 2)
     img.paste(logo, logo_pos, logo)
     return img
 
@@ -34,18 +38,22 @@ def _add_logo_to_svg(svg_str, logo_path):
     width, height = float(match.group(1)), float(match.group(2))
 
     logo = Image.open(logo_path).convert("RGBA")
+    logo_size = width * 0.22
+    # Fit within the logo_size square instead of stretching to fill it, so
+    # non-square logos keep their real proportions.
+    logo = ImageOps.contain(logo, (int(logo_size), int(logo_size)), Image.LANCZOS)
+    disp_w, disp_h = logo.size
     buf = BytesIO()
     logo.save(buf, format="PNG")
     b64 = base64.b64encode(buf.getvalue()).decode('ascii')
 
-    logo_size = width * 0.22
     box_size = logo_size + (logo_size * 0.08) * 2
     box_pos = ((width - box_size) / 2, (height - box_size) / 2)
-    logo_pos = ((width - logo_size) / 2, (height - logo_size) / 2)
+    logo_pos = ((width - disp_w) / 2, (height - disp_h) / 2)
 
     overlay = (
         f'<rect x="{box_pos[0]:.2f}" y="{box_pos[1]:.2f}" width="{box_size:.2f}" height="{box_size:.2f}" fill="#ffffff"/>'
-        f'<image x="{logo_pos[0]:.2f}" y="{logo_pos[1]:.2f}" width="{logo_size:.2f}" height="{logo_size:.2f}" '
+        f'<image x="{logo_pos[0]:.2f}" y="{logo_pos[1]:.2f}" width="{disp_w:.2f}" height="{disp_h:.2f}" '
         f'href="data:image/png;base64,{b64}"/>'
     )
     return svg_str.replace('</svg>', overlay + '</svg>')

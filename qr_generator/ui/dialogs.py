@@ -7,6 +7,8 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushBut
 from PyQt5.QtGui import QColor, QRegExpValidator
 from PyQt5.QtCore import Qt, QRegExp
 
+from qr_generator.utils import apply_dark_title_bar
+
 class SettingsWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -14,11 +16,9 @@ class SettingsWindow(QDialog):
         self.setWindowTitle('Settings')
         self.setGeometry(100, 100, 300, 300)
         self.center()
-        
+        apply_dark_title_bar(self)
+
         # Initialize defaults
-        self.fg_color = "#000000"
-        self.bg_color = "#ffffff"
-        self.is_transparent = False
         self.show_sidebar = True
         self.logo_path = None
 
@@ -66,35 +66,6 @@ class SettingsWindow(QDialog):
 
         self.layout.addWidget(self.separator)
 
-        # Style settings
-        self.style_title = QLabel('QR Style & Transparency')
-        self.style_title.setFont(font)
-        self.layout.addWidget(self.style_title)
-
-        # Foreground Color
-        fg_layout = QHBoxLayout()
-        self.fg_color_label = QLabel("Foreground Color")
-        self.fg_color_btn = QPushButton("Select Color")
-        self.fg_color_btn.clicked.connect(self.pick_fg_color)
-        fg_layout.addWidget(self.fg_color_label)
-        fg_layout.addWidget(self.fg_color_btn)
-        self.layout.addLayout(fg_layout)
-
-        # Background Color
-        bg_layout = QHBoxLayout()
-        self.bg_color_label = QLabel("Background Color")
-        self.bg_color_btn = QPushButton("Select Color")
-        self.bg_color_btn.clicked.connect(self.pick_bg_color)
-        bg_layout.addWidget(self.bg_color_label)
-        bg_layout.addWidget(self.bg_color_btn)
-        self.layout.addLayout(bg_layout)
-
-        # Transparency
-        self.transparency_check = QCheckBox("Transparent Background")
-        self.transparency_check.setStyleSheet("color: white; font-weight: bold;")
-        self.transparency_check.stateChanged.connect(self.on_transparency_toggled)
-        self.layout.addWidget(self.transparency_check)
-
         # Sidebar toggle
         self.sidebar_check = QCheckBox("Show Archive Sidebar")
         self.sidebar_check.setStyleSheet("color: white; font-weight: bold;")
@@ -136,62 +107,20 @@ class SettingsWindow(QDialog):
                 self.resolution_input.setText(str(resolution))
                 self.label_dimensions.setText(f'Current Resolution: {resolution} x {resolution} px')
 
-            self.fg_color = settings[2] if len(settings) > 2 and settings[2] else "#000000"
-            self.bg_color = settings[3] if len(settings) > 3 and settings[3] else "#ffffff"
-            trans = settings[4] if len(settings) > 4 else 0
             sidebar = settings[5] if len(settings) > 5 else 1
             self.logo_path = settings[6] if len(settings) > 6 and settings[6] and os.path.isfile(settings[6]) else None
         else:
             # No settings row yet (fresh install): keep the __init__ defaults
-            # and make sure the checkboxes reflect them, otherwise Qt's default
+            # and make sure the checkbox reflects them, otherwise Qt's default
             # unchecked state would get saved as "off" the moment anything
             # here triggers save_all_settings().
-            trans = 0
             sidebar = 1
 
-        self.fg_color_btn.setStyleSheet(f"background-color: {self.fg_color}; color: {'white' if QColor(self.fg_color).lightness() < 128 else 'black'};")
-        self.bg_color_btn.setStyleSheet(f"background-color: {self.bg_color}; color: {'white' if QColor(self.bg_color).lightness() < 128 else 'black'};")
-
-        self.transparency_check.blockSignals(True)
         self.sidebar_check.blockSignals(True)
-        self.transparency_check.setChecked(bool(trans))
         self.sidebar_check.setChecked(bool(sidebar))
-        self.transparency_check.blockSignals(False)
         self.sidebar_check.blockSignals(False)
 
         self.logo_status_label.setText(os.path.basename(self.logo_path) if self.logo_path else "No logo selected")
-
-        self.update_ui_states()
-
-    def on_transparency_toggled(self):
-        self.update_ui_states()
-        self.save_all_settings()
-
-    def update_ui_states(self):
-        is_trans = self.transparency_check.isChecked()
-        self.bg_color_btn.setEnabled(not is_trans)
-        self.bg_color_label.setEnabled(not is_trans)
-        if is_trans:
-            self.bg_color_btn.setStyleSheet("background-color: #444; color: #888; border: 1px solid #555;")
-        else:
-            bg = self.bg_color
-            self.bg_color_btn.setStyleSheet(f"background-color: {bg}; color: {'white' if QColor(bg).lightness() < 128 else 'black'};")
-
-    def pick_fg_color(self):
-        from PyQt5.QtWidgets import QColorDialog
-        color = QColorDialog.getColor(QColor(self.fg_color), self, "Select Foreground Color")
-        if color.isValid():
-            self.fg_color = color.name()
-            self.fg_color_btn.setStyleSheet(f"background-color: {self.fg_color}; color: {'white' if color.lightness() < 128 else 'black'};")
-            self.save_all_settings()
-
-    def pick_bg_color(self):
-        from PyQt5.QtWidgets import QColorDialog
-        color = QColorDialog.getColor(QColor(self.bg_color), self, "Select Background Color")
-        if color.isValid():
-            self.bg_color = color.name()
-            self.bg_color_btn.setStyleSheet(f"background-color: {self.bg_color}; color: {'white' if color.lightness() < 128 else 'black'};")
-            self.save_all_settings()
 
     def pick_logo(self):
         path, _ = QFileDialog.getOpenFileName(self, "Select Logo", "", "Images (*.png *.jpg *.jpeg *.bmp)")
@@ -219,9 +148,12 @@ class SettingsWindow(QDialog):
         except (ValueError, TypeError):
             res = self.parent_obj.img_size
 
-        trans = 1 if self.transparency_check.isChecked() else 0
+        # Foreground/background color and transparency now live on the main
+        # window (edited right under the preview), so read the current live
+        # values from there instead of caching a copy here that could go stale.
+        trans = 1 if self.parent_obj.is_transparent else 0
         sidebar = 1 if self.sidebar_check.isChecked() else 0
-        self.parent_obj.db.set_settings(lang, res, self.fg_color, self.bg_color, trans, sidebar, self.logo_path)
+        self.parent_obj.db.set_settings(lang, res, self.parent_obj.fg_color, self.parent_obj.bg_color, trans, sidebar, self.logo_path)
         self.parent_obj.load_settings() # Reload in main window
         self.parent_obj.update_preview()
 
@@ -250,12 +182,6 @@ class SettingsWindow(QDialog):
         self.label_info.setText(t.get('resolution_info', 'Min: 100 px, Max: 2000 px'))
         self.set_button.setText(t.get('set_resolution', 'Set Resolution'))
         self.label_dimensions.setText(t.get('current_resolution', 'Current Resolution: {0} x {0} px').format(self.parent_obj.img_size))
-        self.style_title.setText(t.get('style_title', 'QR Style & Transparency'))
-        self.fg_color_label.setText(t.get('fg_color', 'Foreground Color'))
-        self.bg_color_label.setText(t.get('bg_color', 'Background Color'))
-        self.fg_color_btn.setText(t.get('select_color', 'Select Color'))
-        self.bg_color_btn.setText(t.get('select_color', 'Select Color'))
-        self.transparency_check.setText(t.get('transparent_bg', 'Transparent Background'))
         self.sidebar_check.setText(t.get('show_sidebar', 'Show Archive Sidebar'))
         self.logo_title.setText(t.get('logo_title', 'QR Logo'))
         self.logo_select_btn.setText(t.get('logo_select', 'Select Logo'))
@@ -294,6 +220,7 @@ class ArchiveWindow(QDialog):
         self.setWindowTitle('Archive')
         self.setGeometry(100, 100, 340, 460)
         self.center()
+        apply_dark_title_bar(self)
 
         self.layout = QVBoxLayout()
 
@@ -504,6 +431,7 @@ class AboutWindow(QDialog):
         self.setWindowTitle('About')
         self.setGeometry(100, 100, 400, 200)
         self.center()
+        apply_dark_title_bar(self)
 
         self.layout = QVBoxLayout()
 

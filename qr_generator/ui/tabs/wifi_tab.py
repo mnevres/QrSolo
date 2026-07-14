@@ -13,6 +13,16 @@ def _wifi_escape(value):
     return re.sub(r'([\\;,":])', r'\\\1', value)
 
 
+def build_wifi_string(ssid, password, security_choice, hidden):
+    sec = {'WPA/WPA2': 'WPA', 'WEP': 'WEP'}.get(security_choice, 'nopass')
+
+    parts = [f"WIFI:T:{sec}", f"S:{_wifi_escape(ssid)}"]
+    if sec != 'nopass':
+        parts.append(f"P:{_wifi_escape(password)}")
+    parts.append(f"H:{'true' if hidden else 'false'}")
+    return ";".join(parts) + ";;"
+
+
 class WiFiTab(QWidget):
     def __init__(self, main_window):
         super().__init__()
@@ -67,10 +77,16 @@ class WiFiTab(QWidget):
         radio_layout.addStretch()
         export_section.addLayout(radio_layout)
 
-        wifi_buttons_layout = QHBoxLayout()
+        # Stacked instead of side-by-side: this column is narrow enough that
+        # splitting it between two buttons left "Save WiFi QR" too little
+        # room and its uppercased label got visually clipped. Full-width
+        # rows (matching the URL tab's single Save button) give each one
+        # all the space it needs.
+        wifi_buttons_layout = QVBoxLayout()
+        wifi_buttons_layout.setSpacing(10)
         self.generate_button_wifi = QPushButton('Save WiFi QR')
         self.generate_button_wifi.clicked.connect(self.generate_qr_code)
-        wifi_buttons_layout.addWidget(self.generate_button_wifi, stretch=1)
+        wifi_buttons_layout.addWidget(self.generate_button_wifi)
 
         self.clear_wifi_btn = QPushButton('New WiFi')
         self.clear_wifi_btn.setObjectName("clear_vcard_btn")
@@ -105,15 +121,8 @@ class WiFiTab(QWidget):
         ssid = self.ssid_input.text().strip()
         password = self.password_input.text()
         security_choice = self.security_combo.currentText()
-        hidden = 'true' if self.hidden_check.isChecked() else 'false'
-
-        sec = {'WPA/WPA2': 'WPA', 'WEP': 'WEP'}.get(security_choice, 'nopass')
-
-        parts = [f"WIFI:T:{sec}", f"S:{_wifi_escape(ssid)}"]
-        if sec != 'nopass':
-            parts.append(f"P:{_wifi_escape(password)}")
-        parts.append(f"H:{hidden}")
-        return ";".join(parts) + ";;"
+        hidden = self.hidden_check.isChecked()
+        return build_wifi_string(ssid, password, security_choice, hidden)
 
     def clear_wifi_form(self):
         self.editing_wifi_id = None

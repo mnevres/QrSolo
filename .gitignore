@@ -6,6 +6,7 @@ venv/
 # Build artifacts
 build/
 dist/
+output/
 *.spec.bak
 
 # Runtime data

@@ -7,6 +7,8 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBo
 
 from qr_generator.engine import make_custom_qr
 from qr_generator.utils import sanitize_filename
+from qr_generator.ui.tabs.wifi_tab import build_wifi_string
+from qr_generator.ui.tabs.email_tab import build_email_uri
 
 
 class BulkTab(QWidget):
@@ -32,7 +34,7 @@ class BulkTab(QWidget):
         type_layout = QHBoxLayout()
         self.bulk_type_label = QLabel("Data Type:")
         self.bulk_type_combo = QComboBox()
-        self.bulk_type_combo.addItems(["URL", "VCard"])
+        self.bulk_type_combo.addItems(["URL", "VCard", "WiFi", "Email"])
         type_layout.addWidget(self.bulk_type_label)
         type_layout.addWidget(self.bulk_type_combo)
         type_layout.addStretch()
@@ -58,6 +60,9 @@ class BulkTab(QWidget):
         self.csv_path_label.setReadOnly(True)
         self.select_csv_btn = QPushButton("Browse CSV")
         self.select_csv_btn.setFixedWidth(170)
+        # Match the adjacent QLineEdit's height (38px) instead of the taller
+        # global QPushButton default (42px) so the row lines up evenly.
+        self.select_csv_btn.setStyleSheet("min-height: 38px; max-height: 38px;")
         self.select_csv_btn.clicked.connect(self.select_bulk_csv)
 
         csv_layout = QHBoxLayout()
@@ -71,6 +76,7 @@ class BulkTab(QWidget):
         self.output_path_label.setReadOnly(True)
         self.select_output_btn = QPushButton("Browse Folder")
         self.select_output_btn.setFixedWidth(170)
+        self.select_output_btn.setStyleSheet("min-height: 38px; max-height: 38px;")
         self.select_output_btn.clicked.connect(self.select_bulk_output)
 
         output_layout = QHBoxLayout()
@@ -139,7 +145,7 @@ class BulkTab(QWidget):
                             img.save(file_path)
                             logging.info(f"Bulk saved URL QR: {file_path}")
                             count += 1
-                else: # VCard
+                elif data_type == "VCard":
                     for row in reader:
                         if len(row) >= 8:
                             vcard_obj = vobject.vCard()
@@ -176,6 +182,37 @@ class BulkTab(QWidget):
                                 img.save(file_path)
                                 logging.info(f"Bulk saved VCard QR: {file_path}")
                                 count += 1
+                elif data_type == "WiFi":
+                    for row in reader:
+                        if row:
+                            ssid = row[0] if len(row) > 0 else ""
+                            password = row[1] if len(row) > 1 else ""
+                            security = row[2] if len(row) > 2 else "WPA/WPA2"
+                            hidden = row[3].strip().lower() in ("true", "1", "yes") if len(row) > 3 else False
+
+                            if ssid:
+                                wifi_data = build_wifi_string(ssid, password, security, hidden)
+                                filename = f"{sanitize_filename(ssid)}_wifi" + ext
+                                img = make_custom_qr(wifi_data, fg_color=mw.fg_color, bg_color=mw.bg_color, is_transparent=mw.is_transparent, is_svg=is_svg, logo_path=mw.logo_path)
+                                file_path = os.path.join(output_dir, filename)
+                                img.save(file_path)
+                                logging.info(f"Bulk saved WiFi QR: {file_path}")
+                                count += 1
+                else: # Email
+                    for row in reader:
+                        if row:
+                            to = row[0] if len(row) > 0 else ""
+                            subject = row[1] if len(row) > 1 else ""
+                            message = row[2] if len(row) > 2 else ""
+
+                            if to:
+                                email_uri = build_email_uri(to, subject, message)
+                                filename = f"{sanitize_filename(to)}_email" + ext
+                                img = make_custom_qr(email_uri, fg_color=mw.fg_color, bg_color=mw.bg_color, is_transparent=mw.is_transparent, is_svg=is_svg, logo_path=mw.logo_path)
+                                file_path = os.path.join(output_dir, filename)
+                                img.save(file_path)
+                                logging.info(f"Bulk saved Email QR: {file_path}")
+                                count += 1
 
                 mw.show_toast(self.bulk_success_template.format(count, output_dir))
                 logging.info(f"Bulk generation finished. Created {count} files in {output_dir}")
@@ -190,10 +227,18 @@ class BulkTab(QWidget):
             default_name = "url_template.csv"
             headers = ["URL"]
             sample_data = [["https://google.com"]]
-        else:
+        elif data_type == "VCard":
             default_name = "vcard_template.csv"
             headers = ["First Name", "Last Name", "Organization", "Title", "Email", "Phone", "Mobile Phone", "URL"]
             sample_data = [["John", "Doe", "ACME", "CEO", "john@example.com", "123", "456", "http://john.com"]]
+        elif data_type == "WiFi":
+            default_name = "wifi_template.csv"
+            headers = ["SSID", "Password", "Security", "Hidden"]
+            sample_data = [["MyHomeWiFi", "supersecret123", "WPA/WPA2", "false"]]
+        else: # Email
+            default_name = "email_template.csv"
+            headers = ["To", "Subject", "Message"]
+            sample_data = [["john@example.com", "Hello", "This is a sample message."]]
 
         path, _ = QFileDialog.getSaveFileName(self, "Save Template", default_name, "CSV Files (*.csv)")
         if path:

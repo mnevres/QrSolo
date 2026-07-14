@@ -1,16 +1,16 @@
 import os
 import logging
 import json
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QTabWidget, QFrame,
-                             QLabel, QMenuBar, QAction, QLineEdit, QApplication,
-                             QListWidget, QListWidgetItem, QMenu)
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QFrame,
+                             QLabel, QMenuBar, QAction, QLineEdit, QApplication, QPushButton,
+                             QCheckBox, QColorDialog, QListWidget, QListWidgetItem, QMenu)
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QColor, QImage
 from PyQt5.QtCore import Qt
 
 from qr_generator import __version__
 from qr_generator.database import Database
 from qr_generator.engine import make_custom_qr
-from qr_generator.utils import resource_path
+from qr_generator.utils import resource_path, apply_dark_title_bar
 from qr_generator.ui.widgets import ToastNotification
 from qr_generator.ui.dialogs import SettingsWindow, ArchiveWindow, AboutWindow
 from qr_generator.ui.tabs.url_tab import URLTab
@@ -28,6 +28,7 @@ class QRCodeGenerator(QMainWindow):
         self.resize(1060, 650)
         self.setWindowIcon(QIcon(resource_path('icon.png')))
         self.center()
+        apply_dark_title_bar(self)
 
         self.main_widget = QWidget()
         self.main_layout = QVBoxLayout(self.main_widget)
@@ -92,6 +93,35 @@ class QRCodeGenerator(QMainWindow):
         self.preview_layout.addWidget(self.preview_label)
 
         self.preview_placeholder = "Preview\nArea"
+
+        # QR style controls (color/transparency) live right under the preview
+        # instead of behind a separate Settings dialog, so changes show up
+        # immediately. Logo stays in Settings -- it's a set-once-and-forget
+        # file pick, not something you tweak per code like these.
+        self.style_title = QLabel("QR Style")
+        self.style_title.setStyleSheet("font-weight: bold; color: #8e8e93; margin-top: 35px;")
+        self.preview_layout.addWidget(self.style_title)
+
+        fg_row = QHBoxLayout()
+        self.fg_color_label = QLabel("Foreground Color")
+        self.fg_color_btn = QPushButton("Select Color")
+        self.fg_color_btn.clicked.connect(self.pick_fg_color)
+        fg_row.addWidget(self.fg_color_label)
+        fg_row.addWidget(self.fg_color_btn)
+        self.preview_layout.addLayout(fg_row)
+
+        bg_row = QHBoxLayout()
+        self.bg_color_label = QLabel("Background Color")
+        self.bg_color_btn = QPushButton("Select Color")
+        self.bg_color_btn.clicked.connect(self.pick_bg_color)
+        bg_row.addWidget(self.bg_color_label)
+        bg_row.addWidget(self.bg_color_btn)
+        self.preview_layout.addLayout(bg_row)
+
+        self.transparency_check = QCheckBox("Transparent Background")
+        self.transparency_check.setStyleSheet("color: white; font-weight: bold;")
+        self.transparency_check.stateChanged.connect(self.on_transparency_toggled)
+        self.preview_layout.addWidget(self.transparency_check)
 
         self.url_tab = URLTab(self)
         self.vcard_tab = VCardTab(self)
@@ -315,7 +345,7 @@ class QRCodeGenerator(QMainWindow):
                 padding: 20px;
             }
             #preview_container {
-                padding: 30px;
+                padding: 15px 30px 30px 30px;
             }
             QMenuBar {
                 background-color: #0b0b0c;
@@ -481,8 +511,55 @@ class QRCodeGenerator(QMainWindow):
             self.show_sidebar = True
             self.logo_path = None
 
+        self.update_style_controls_ui()
         self.set_language(self.current_language)
         self.update_sidebar_visibility()
+
+    # QPushButton's global rule sets min-height: 42px and padding: 5px 20px --
+    # a widget-level setFixedHeight() loses to that CSS min-height once the
+    # style engine repolishes the button, so the compact size has to be
+    # asserted in the stylesheet itself, not in code.
+    _COMPACT_BTN_CSS = "min-height: 20px; max-height: 20px; padding: 2px 14px;"
+
+    def update_style_controls_ui(self):
+        # QPushButton's global rule sets a gradient via the "background" shorthand,
+        # which a local "background-color" override doesn't fully beat -- use
+        # "background" here too so the swatch color actually shows.
+        self.fg_color_btn.setStyleSheet(f"{self._COMPACT_BTN_CSS} background: {self.fg_color}; color: {'white' if QColor(self.fg_color).lightness() < 128 else 'black'};")
+
+        self.transparency_check.blockSignals(True)
+        self.transparency_check.setChecked(self.is_transparent)
+        self.transparency_check.blockSignals(False)
+
+        self.bg_color_btn.setEnabled(not self.is_transparent)
+        self.bg_color_label.setEnabled(not self.is_transparent)
+        if self.is_transparent:
+            self.bg_color_btn.setStyleSheet(f"{self._COMPACT_BTN_CSS} background: #444; color: #888; border: 1px solid #555;")
+        else:
+            self.bg_color_btn.setStyleSheet(f"{self._COMPACT_BTN_CSS} background: {self.bg_color}; color: {'white' if QColor(self.bg_color).lightness() < 128 else 'black'};")
+
+    def pick_fg_color(self):
+        color = QColorDialog.getColor(QColor(self.fg_color), self, "Select Foreground Color")
+        if color.isValid():
+            self.fg_color = color.name()
+            self.save_style_settings()
+
+    def pick_bg_color(self):
+        color = QColorDialog.getColor(QColor(self.bg_color), self, "Select Background Color")
+        if color.isValid():
+            self.bg_color = color.name()
+            self.save_style_settings()
+
+    def on_transparency_toggled(self):
+        self.is_transparent = self.transparency_check.isChecked()
+        self.save_style_settings()
+
+    def save_style_settings(self):
+        trans = 1 if self.is_transparent else 0
+        sidebar = 1 if self.show_sidebar else 0
+        self.db.set_settings(self.current_language, self.img_size, self.fg_color, self.bg_color, trans, sidebar, self.logo_path)
+        self.update_style_controls_ui()
+        self.update_preview()
 
     def set_language(self, language):
         self.current_language = language
