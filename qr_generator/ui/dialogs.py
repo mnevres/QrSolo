@@ -301,7 +301,7 @@ class ArchiveWindow(QDialog):
         self.layout.addWidget(self.type_label)
 
         self.type_combo = QComboBox()
-        self.type_combo.addItems(['URL', 'VCard'])
+        self.type_combo.addItems(['URL', 'VCard', 'WiFi', 'Email'])
         self.type_combo.currentIndexChanged.connect(self.load_archive)
         self.layout.addWidget(self.type_combo)
 
@@ -330,18 +330,30 @@ class ArchiveWindow(QDialog):
         self.db = self.parent_obj.db
         self.load_archive()
 
-    def is_url_mode(self):
-        return self.type_combo.currentIndex() == 0
+    def current_mode(self):
+        return self.type_combo.currentText()  # 'URL' | 'VCard' | 'WiFi' | 'Email'
 
     def load_archive(self):
         self.list_widget.clear()
-        if self.is_url_mode():
+        mode = self.current_mode()
+        if mode == 'URL':
             for url_row in self.db.get_urls():
                 self.list_widget.addItem(url_row[0])
-        else:
+        elif mode == 'VCard':
             for vcard in self.db.get_vcards():
                 item = QListWidgetItem(vcard[1])  # name
                 item.setData(Qt.UserRole, vcard[0])  # id
+                self.list_widget.addItem(item)
+        elif mode == 'WiFi':
+            for wifi in self.db.get_wifis():
+                item = QListWidgetItem(wifi[1])  # ssid
+                item.setData(Qt.UserRole, wifi[0])  # id
+                self.list_widget.addItem(item)
+        elif mode == 'Email':
+            for email in self.db.get_emails():
+                label = f"{email[1]} ({email[2]})" if email[2] else email[1]  # to (subject)
+                item = QListWidgetItem(label)
+                item.setData(Qt.UserRole, email[0])  # id
                 self.list_widget.addItem(item)
         self.update_title()
 
@@ -350,8 +362,13 @@ class ArchiveWindow(QDialog):
         t = self.parent_obj.translations.get(
             current_language, self.parent_obj.translations.get('English', {})
         )
-        key = 'url_archive_title' if self.is_url_mode() else 'vcard_archive_title'
-        default = 'URL Archive' if self.is_url_mode() else 'VCard Archive'
+        key_by_mode = {
+            'URL': ('url_archive_title', 'URL Archive'),
+            'VCard': ('vcard_archive_title', 'VCard Archive'),
+            'WiFi': ('wifi_archive_title', 'WiFi Archive'),
+            'Email': ('email_archive_title', 'Email Archive'),
+        }
+        key, default = key_by_mode[self.current_mode()]
         self.setWindowTitle(t.get(key, default))
 
     def center(self):
@@ -364,94 +381,112 @@ class ArchiveWindow(QDialog):
         item = self.list_widget.currentItem()
         if not item:
             return
-        if self.is_url_mode():
+        mode = self.current_mode()
+        if mode == 'URL':
             self.parent_obj.load_url(item.text())
             self.parent_obj.tabs.setCurrentIndex(0)
-        else:
+        elif mode == 'VCard':
             vcard_id = item.data(Qt.UserRole)
             for vcard in self.db.get_vcards():
                 if vcard[0] == vcard_id:
                     self.parent_obj.load_vcard(*vcard)
                     break
             self.parent_obj.tabs.setCurrentIndex(1)
+        elif mode == 'WiFi':
+            wifi_id = item.data(Qt.UserRole)
+            for wifi in self.db.get_wifis():
+                if wifi[0] == wifi_id:
+                    self.parent_obj.load_wifi(*wifi)
+                    break
+            self.parent_obj.tabs.setCurrentIndex(2)
+        elif mode == 'Email':
+            email_id = item.data(Qt.UserRole)
+            for email in self.db.get_emails():
+                if email[0] == email_id:
+                    self.parent_obj.load_email(*email)
+                    break
+            self.parent_obj.tabs.setCurrentIndex(3)
         self.close()
 
     def delete_selected(self):
         item = self.list_widget.currentItem()
         if not item:
             return
-        if self.is_url_mode():
+        mode = self.current_mode()
+        if mode == 'URL':
             self.db.delete_url(item.text())
-        else:
+        elif mode == 'VCard':
             vcard_id = item.data(Qt.UserRole)
             self.db.delete_vcard(vcard_id)
             if self.parent_obj.editing_vcard_id == vcard_id:
                 self.parent_obj.editing_vcard_id = None
+        elif mode == 'WiFi':
+            wifi_id = item.data(Qt.UserRole)
+            self.db.delete_wifi(wifi_id)
+            if self.parent_obj.editing_wifi_id == wifi_id:
+                self.parent_obj.editing_wifi_id = None
+        elif mode == 'Email':
+            email_id = item.data(Qt.UserRole)
+            self.db.delete_email(email_id)
+            if self.parent_obj.editing_email_id == email_id:
+                self.parent_obj.editing_email_id = None
         self.list_widget.takeItem(self.list_widget.row(item))
         self.parent_obj.populate_sidebar()
 
     def export_to_csv(self):
-        if self.is_url_mode():
-            path, _ = QFileDialog.getSaveFileName(self, "Save CSV", "url_archive.csv", "CSV Files (*.csv)")
-            if not path:
-                return
-            try:
-                urls = self.db.get_urls()
-                with open(path, 'w', newline='', encoding='utf-8-sig') as f:
-                    writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+        mode = self.current_mode()
+        default_names = {'URL': 'url_archive.csv', 'VCard': 'vcard_archive.csv', 'WiFi': 'wifi_archive.csv', 'Email': 'email_archive.csv'}
+        path, _ = QFileDialog.getSaveFileName(self, "Save CSV", default_names[mode], "CSV Files (*.csv)")
+        if not path:
+            return
+        try:
+            with open(path, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+                if mode == 'URL':
                     writer.writerow(["URL"])
-                    writer.writerows(urls)
-                self.parent_obj.show_toast(self.parent_obj.success_export_message)
-            except Exception as e:
-                self.parent_obj.show_toast(f"Could not export: {e}", is_error=True)
-        else:
-            path, _ = QFileDialog.getSaveFileName(self, "Save CSV", "vcard_archive.csv", "CSV Files (*.csv)")
-            if not path:
-                return
-            try:
-                vcards = self.db.get_vcards()
-                with open(path, 'w', newline='', encoding='utf-8-sig') as f:
-                    writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+                    writer.writerows(self.db.get_urls())
+                elif mode == 'VCard':
                     writer.writerow(["Name", "First Name", "Last Name", "Organization", "Title", "Email", "Phone", "Mobile", "Website", "VCard Text"])
-                    writer.writerows([v[1:] for v in vcards])  # skip internal id
-                self.parent_obj.show_toast(self.parent_obj.success_export_message)
-            except Exception as e:
-                self.parent_obj.show_toast(f"Could not export: {e}", is_error=True)
+                    writer.writerows([v[1:] for v in self.db.get_vcards()])  # skip internal id
+                elif mode == 'WiFi':
+                    writer.writerow(["SSID", "Password", "Security", "Hidden"])
+                    writer.writerows([w[1:] for w in self.db.get_wifis()])  # skip internal id
+                elif mode == 'Email':
+                    writer.writerow(["To", "Subject", "Message"])
+                    writer.writerows([e[1:] for e in self.db.get_emails()])  # skip internal id
+            self.parent_obj.show_toast(self.parent_obj.success_export_message)
+        except Exception as e:
+            self.parent_obj.show_toast(f"Could not export: {e}", is_error=True)
 
     def import_from_csv(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open CSV", "", "CSV Files (*.csv)")
         if not path:
             return
-        if self.is_url_mode():
-            try:
-                with open(path, 'r', newline='', encoding='utf-8-sig') as f:
-                    reader = csv.reader(f)
-                    header = next(reader, None)
-                    if header and any("URL" in h for h in header):
-                        for row in reader:
-                            if row:
-                                self.db.add_url(row[0])
-                        self.load_archive()
-                        self.parent_obj.show_toast(self.parent_obj.success_import_done_message)
-                    else:
-                        self.parent_obj.show_toast("This is not a valid URL archive CSV.", is_error=True)
-            except Exception as e:
-                self.parent_obj.show_toast(f"Could not import: {e}", is_error=True)
-        else:
-            try:
-                with open(path, 'r', newline='', encoding='utf-8-sig') as f:
-                    reader = csv.reader(f)
-                    header = next(reader, None)
-                    if header and any("Name" in h for h in header):
-                        for row in reader:
-                            if len(row) >= 10:
-                                self.db.add_vcard(*row)
-                        self.load_archive()
-                        self.parent_obj.show_toast(self.parent_obj.success_import_done_message)
-                    else:
-                        self.parent_obj.show_toast("This is not a valid VCard archive CSV.", is_error=True)
-            except Exception as e:
-                self.parent_obj.show_toast(f"Could not import: {e}", is_error=True)
+        mode = self.current_mode()
+        header_marker = {'URL': 'URL', 'VCard': 'Name', 'WiFi': 'SSID', 'Email': 'To'}[mode]
+        invalid_message = f"This is not a valid {mode} archive CSV."
+        try:
+            with open(path, 'r', newline='', encoding='utf-8-sig') as f:
+                reader = csv.reader(f)
+                header = next(reader, None)
+                if not header or not any(header_marker in h for h in header):
+                    self.parent_obj.show_toast(invalid_message, is_error=True)
+                    return
+                for row in reader:
+                    if not row:
+                        continue
+                    if mode == 'URL':
+                        self.db.add_url(row[0])
+                    elif mode == 'VCard' and len(row) >= 10:
+                        self.db.add_vcard(*row)
+                    elif mode == 'WiFi' and len(row) >= 4:
+                        self.db.add_wifi(row[0], row[1], row[2], int(row[3]) if row[3] else 0)
+                    elif mode == 'Email' and len(row) >= 3:
+                        self.db.add_email(row[0], row[1], row[2])
+                self.load_archive()
+                self.parent_obj.show_toast(self.parent_obj.success_import_done_message)
+        except Exception as e:
+            self.parent_obj.show_toast(f"Could not import: {e}", is_error=True)
 
     def update_language_ui(self, language):
         t = self.parent_obj.translations.get(language, self.parent_obj.translations.get('English', {}))
@@ -460,6 +495,7 @@ class ArchiveWindow(QDialog):
         self.delete_button.setText(t.get('delete', 'Delete'))
         self.export_button.setText(t.get('export_archive', 'Export Archive to CSV'))
         self.import_button.setText(t.get('import_archive', 'Import Archive from CSV'))
+        self.update_title()
         self.update_title()
 
 class AboutWindow(QDialog):

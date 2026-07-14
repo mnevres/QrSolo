@@ -11,6 +11,10 @@ class Database:
                                  (id INTEGER PRIMARY KEY, url TEXT UNIQUE)''')
             conn.execute('''CREATE TABLE IF NOT EXISTS vcard_archive
                                  (id INTEGER PRIMARY KEY, name TEXT, fn TEXT, ln TEXT, org TEXT, title TEXT, email TEXT, phone TEXT, mobile TEXT, url TEXT, vcard TEXT)''')
+            conn.execute('''CREATE TABLE IF NOT EXISTS wifi_archive
+                                 (id INTEGER PRIMARY KEY, ssid TEXT, password TEXT, security TEXT, hidden INTEGER)''')
+            conn.execute('''CREATE TABLE IF NOT EXISTS email_archive
+                                 (id INTEGER PRIMARY KEY, to_address TEXT, subject TEXT, message TEXT)''')
             conn.execute('''CREATE TABLE IF NOT EXISTS settings
                                  (id INTEGER PRIMARY KEY, language TEXT, resolution INTEGER)''')
 
@@ -78,6 +82,50 @@ class Database:
     def delete_vcard(self, vcard_id):
         with sqlite3.connect(self.db_name) as conn:
             conn.execute("DELETE FROM vcard_archive WHERE id = ?", (vcard_id,))
+            conn.commit()
+
+    def add_wifi(self, ssid, password, security, hidden):
+        with sqlite3.connect(self.db_name) as conn:
+            cur = conn.execute('''INSERT INTO wifi_archive (ssid, password, security, hidden)
+                                 VALUES (?, ?, ?, ?)''', (ssid.strip(), password, security, hidden))
+            conn.commit()
+            return cur.lastrowid
+
+    def update_wifi(self, wifi_id, ssid, password, security, hidden):
+        with sqlite3.connect(self.db_name) as conn:
+            conn.execute('''UPDATE wifi_archive SET ssid=?, password=?, security=?, hidden=?
+                                 WHERE id=?''', (ssid.strip(), password, security, hidden, wifi_id))
+            conn.commit()
+
+    def get_wifis(self):
+        with sqlite3.connect(self.db_name) as conn:
+            return conn.execute("SELECT id, ssid, password, security, hidden FROM wifi_archive").fetchall()
+
+    def delete_wifi(self, wifi_id):
+        with sqlite3.connect(self.db_name) as conn:
+            conn.execute("DELETE FROM wifi_archive WHERE id = ?", (wifi_id,))
+            conn.commit()
+
+    def add_email(self, to_address, subject, message):
+        with sqlite3.connect(self.db_name) as conn:
+            cur = conn.execute('''INSERT INTO email_archive (to_address, subject, message)
+                                 VALUES (?, ?, ?)''', (to_address.strip(), subject, message))
+            conn.commit()
+            return cur.lastrowid
+
+    def update_email(self, email_id, to_address, subject, message):
+        with sqlite3.connect(self.db_name) as conn:
+            conn.execute('''UPDATE email_archive SET to_address=?, subject=?, message=?
+                                 WHERE id=?''', (to_address.strip(), subject, message, email_id))
+            conn.commit()
+
+    def get_emails(self):
+        with sqlite3.connect(self.db_name) as conn:
+            return conn.execute("SELECT id, to_address, subject, message FROM email_archive").fetchall()
+
+    def delete_email(self, email_id):
+        with sqlite3.connect(self.db_name) as conn:
+            conn.execute("DELETE FROM email_archive WHERE id = ?", (email_id,))
             conn.commit()
 
     def get_settings(self):

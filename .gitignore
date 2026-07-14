@@ -12,6 +12,7 @@ dist/
 *.db
 *.log
 error_log.txt
+qr_logo.*
 
 # Editor
 .vscode/

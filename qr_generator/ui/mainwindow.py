@@ -171,6 +171,22 @@ class QRCodeGenerator(QMainWindow):
     def editing_vcard_id(self, value):
         self.vcard_tab.editing_vcard_id = value
 
+    @property
+    def editing_wifi_id(self):
+        return self.wifi_tab.editing_wifi_id
+
+    @editing_wifi_id.setter
+    def editing_wifi_id(self, value):
+        self.wifi_tab.editing_wifi_id = value
+
+    @property
+    def editing_email_id(self):
+        return self.email_tab.editing_email_id
+
+    @editing_email_id.setter
+    def editing_email_id(self, value):
+        self.email_tab.editing_email_id = value
+
     def apply_styles(self):
         self.setStyleSheet("""
             QMainWindow {
@@ -500,13 +516,27 @@ class QRCodeGenerator(QMainWindow):
             tab = self.tabs.currentIndex()
             self.update_sidebar_visibility()
 
-            if tab not in (0, 1):
+            if tab not in (0, 1, 2, 3):
                 return
 
             self.populate_sidebar()
 
-            data = self.url_tab.url_input.text().strip() if tab == 0 else f"BEGIN:VCARD\nFN:{self.vcard_tab.fn_input.text()} {self.vcard_tab.ln_input.text()}\nEND:VCARD"
-            if not data.strip() or data == "BEGIN:VCARD\nFN: \nEND:VCARD":
+            if tab == 0:
+                data = self.url_tab.url_input.text().strip()
+                is_empty = not data
+            elif tab == 1:
+                fn = self.vcard_tab.fn_input.text().strip()
+                ln = self.vcard_tab.ln_input.text().strip()
+                data = f"BEGIN:VCARD\nFN:{fn} {ln}\nEND:VCARD"
+                is_empty = not fn and not ln
+            elif tab == 2:
+                is_empty = not self.wifi_tab.ssid_input.text().strip()
+                data = self.wifi_tab.build_wifi_string()
+            else:
+                is_empty = not self.email_tab.to_input.text().strip()
+                data = self.email_tab.build_email_uri()
+
+            if is_empty:
                 self.preview_label.clear()
                 self.preview_label.setText(self.preview_placeholder)
                 return
@@ -527,11 +557,12 @@ class QRCodeGenerator(QMainWindow):
             logging.error(f"Preview error: {e}")
 
     def open_archive(self):
-        # Default the archive dropdown to match the tab you're on (URL/VCard),
-        # so opening it from VCard doesn't silently show the URL list first.
-        # Other tabs (WiFi/Email/Bulk) leave whatever mode was last selected.
+        # Default the archive dropdown to match the tab you're on, so opening
+        # it from VCard/WiFi/Email doesn't silently show the URL list first.
+        # Bulk (index 4) has nothing to retrieve, so it leaves whatever mode
+        # was last selected.
         tab = self.tabs.currentIndex()
-        if tab in (0, 1):
+        if tab in (0, 1, 2, 3):
             self.archive_window.type_combo.setCurrentIndex(tab)
         self.archive_window.load_archive()
         self.archive_window.show()
@@ -544,6 +575,12 @@ class QRCodeGenerator(QMainWindow):
     def load_vcard(self, *args):
         self.vcard_tab.load_vcard(*args)
 
+    def load_wifi(self, *args):
+        self.wifi_tab.load_wifi(*args)
+
+    def load_email(self, *args):
+        self.email_tab.load_email(*args)
+
     def filter_sidebar(self):
         search_text = self.sidebar_search.text().lower()
         for i in range(self.sidebar_list.count()):
@@ -552,11 +589,12 @@ class QRCodeGenerator(QMainWindow):
 
     def update_sidebar_visibility(self):
         tab = self.tabs.currentIndex()
-        is_visible = self.show_sidebar and tab in (0, 1)
+        is_visible = self.show_sidebar and tab in (0, 1, 2, 3)
 
         if is_visible:
             # Move shared widgets to current tab's horizontal layout
-            target_layout = self.url_tab.tab_hlayout if tab == 0 else self.vcard_tab.tab_hlayout
+            tab_widgets = [self.url_tab, self.vcard_tab, self.wifi_tab, self.email_tab]
+            target_layout = tab_widgets[tab].tab_hlayout
 
             # Re-insert into layout if missing or moved
             if target_layout.indexOf(self.sidebar_container) == -1:
@@ -588,6 +626,19 @@ class QRCodeGenerator(QMainWindow):
                 item = QListWidgetItem(vcard_row[1]) # name
                 item.setData(Qt.UserRole, vcard_row[0]) # id
                 self.sidebar_list.addItem(item)
+        elif tab == 2: # WiFi
+            self.sidebar_title.setText(t.get('wifi_archive_list', 'Saved WiFi Networks'))
+            for wifi_row in self.db.get_wifis():
+                item = QListWidgetItem(wifi_row[1]) # ssid
+                item.setData(Qt.UserRole, wifi_row[0]) # id
+                self.sidebar_list.addItem(item)
+        elif tab == 3: # Email
+            self.sidebar_title.setText(t.get('email_archive_list', 'Saved Emails'))
+            for email_row in self.db.get_emails():
+                label = f"{email_row[1]} ({email_row[2]})" if email_row[2] else email_row[1] # to (subject)
+                item = QListWidgetItem(label)
+                item.setData(Qt.UserRole, email_row[0]) # id
+                self.sidebar_list.addItem(item)
 
         self.filter_sidebar() # Re-apply search filter if any
 
@@ -598,10 +649,21 @@ class QRCodeGenerator(QMainWindow):
             self.update_preview()
         elif tab == 1:
             vcard_id = item.data(Qt.UserRole)
-            vcards = self.db.get_vcards()
-            for v in vcards:
+            for v in self.db.get_vcards():
                 if v[0] == vcard_id:
                     self.load_vcard(*v)
+                    break
+        elif tab == 2:
+            wifi_id = item.data(Qt.UserRole)
+            for w in self.db.get_wifis():
+                if w[0] == wifi_id:
+                    self.load_wifi(*w)
+                    break
+        elif tab == 3:
+            email_id = item.data(Qt.UserRole)
+            for e in self.db.get_emails():
+                if e[0] == email_id:
+                    self.load_email(*e)
                     break
 
     def show_sidebar_context_menu(self, pos):
@@ -619,10 +681,20 @@ class QRCodeGenerator(QMainWindow):
             tab = self.tabs.currentIndex()
             if tab == 0:
                 self.db.delete_url(item.text())
-            else:
+            elif tab == 1:
                 vcard_id = item.data(Qt.UserRole)
                 self.db.delete_vcard(vcard_id)
                 if self.editing_vcard_id == vcard_id:
                     self.editing_vcard_id = None
+            elif tab == 2:
+                wifi_id = item.data(Qt.UserRole)
+                self.db.delete_wifi(wifi_id)
+                if self.editing_wifi_id == wifi_id:
+                    self.editing_wifi_id = None
+            elif tab == 3:
+                email_id = item.data(Qt.UserRole)
+                self.db.delete_email(email_id)
+                if self.editing_email_id == email_id:
+                    self.editing_email_id = None
             self.populate_sidebar()
             self.archive_window.load_archive()

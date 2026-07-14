@@ -82,7 +82,13 @@
     "logo_title": "QR Logo",
     "logo_select": "Select Logo",
     "logo_remove": "Remove",
-    "logo_none": "No logo selected"
+    "logo_none": "No logo selected",
+    "wifi_archive_title": "WiFi Archive",
+    "email_archive_title": "Email Archive",
+    "wifi_archive_list": "Saved WiFi Networks",
+    "email_archive_list": "Saved Emails",
+    "new_wifi_button": "New WiFi",
+    "new_email_button": "New Email"
   },
   "Türkçe": {
     "window_title": "QRSolo",
@@ -168,6 +174,12 @@
     "logo_title": "QR Logosu",
     "logo_select": "Logo Seç",
     "logo_remove": "Kaldır",
-    "logo_none": "Logo seçilmedi"
+    "logo_none": "Logo seçilmedi",
+    "wifi_archive_title": "WiFi Arşivi",
+    "email_archive_title": "Email Arşivi",
+    "wifi_archive_list": "Kayıtlı WiFi Ağları",
+    "email_archive_list": "Kayıtlı Emailler",
+    "new_wifi_button": "Yeni WiFi",
+    "new_email_button": "Yeni Email"
   }
 }

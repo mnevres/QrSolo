@@ -17,8 +17,14 @@ class WiFiTab(QWidget):
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
+        self.editing_wifi_id = None
 
-        layout = QVBoxLayout(self)
+        self.tab_hlayout = QHBoxLayout(self)
+        self.tab_hlayout.setContentsMargins(0, 0, 0, 0)
+        self.tab_hlayout.setSpacing(0)
+
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
         form_layout = QFormLayout()
@@ -61,12 +67,27 @@ class WiFiTab(QWidget):
         radio_layout.addStretch()
         export_section.addLayout(radio_layout)
 
+        wifi_buttons_layout = QHBoxLayout()
         self.generate_button_wifi = QPushButton('Save WiFi QR')
         self.generate_button_wifi.clicked.connect(self.generate_qr_code)
-        export_section.addWidget(self.generate_button_wifi)
+        wifi_buttons_layout.addWidget(self.generate_button_wifi, stretch=1)
+
+        self.clear_wifi_btn = QPushButton('New WiFi')
+        self.clear_wifi_btn.setObjectName("clear_vcard_btn")
+        self.clear_wifi_btn.clicked.connect(self.clear_wifi_form)
+        wifi_buttons_layout.addWidget(self.clear_wifi_btn)
+
+        export_section.addLayout(wifi_buttons_layout)
 
         layout.addLayout(export_section)
         layout.addStretch()
+
+        self.tab_hlayout.addWidget(content_widget, stretch=1)
+
+        self.ssid_input.textChanged.connect(self.main_window.update_preview)
+        self.password_input.textChanged.connect(self.main_window.update_preview)
+        self.security_combo.currentTextChanged.connect(lambda _: self.main_window.update_preview())
+        self.hidden_check.stateChanged.connect(lambda _: self.main_window.update_preview())
 
     def _update_password_enabled(self, security_choice):
         self.password_input.setEnabled(security_choice != 'None')
@@ -78,6 +99,7 @@ class WiFiTab(QWidget):
         self.hidden_check.setText(t.get('wifi_hidden', 'Hidden Network'))
         self.format_label_wifi.setText(t.get('export_format', 'Select Format:'))
         self.generate_button_wifi.setText(t.get('generate_button_wifi', 'Save WiFi QR'))
+        self.clear_wifi_btn.setText(t.get('new_wifi_button', 'New WiFi'))
 
     def build_wifi_string(self):
         ssid = self.ssid_input.text().strip()
@@ -92,6 +114,23 @@ class WiFiTab(QWidget):
             parts.append(f"P:{_wifi_escape(password)}")
         parts.append(f"H:{hidden}")
         return ";".join(parts) + ";;"
+
+    def clear_wifi_form(self):
+        self.editing_wifi_id = None
+        self.ssid_input.clear()
+        self.password_input.clear()
+        self.security_combo.setCurrentIndex(0)
+        self.hidden_check.setChecked(False)
+        self.main_window.update_preview()
+
+    def load_wifi(self, wifi_id, ssid, password, security, hidden):
+        self.editing_wifi_id = wifi_id
+        self.ssid_input.setText(ssid)
+        self.password_input.setText(password)
+        index = self.security_combo.findText(security)
+        self.security_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.hidden_check.setChecked(bool(hidden))
+        self.main_window.update_preview()
 
     def generate_qr_code(self):
         mw = self.main_window
@@ -111,6 +150,14 @@ class WiFiTab(QWidget):
             file_path, _ = QFileDialog.getSaveFileName(self, "Save WiFi QR", filename, file_type)
             if file_path:
                 mw.qr_img.save(file_path)
+                security = self.security_combo.currentText()
+                hidden = 1 if self.hidden_check.isChecked() else 0
+                if self.editing_wifi_id is not None:
+                    mw.db.update_wifi(self.editing_wifi_id, ssid, self.password_input.text(), security, hidden)
+                else:
+                    self.editing_wifi_id = mw.db.add_wifi(ssid, self.password_input.text(), security, hidden)
+                mw.archive_window.load_archive()
+                mw.populate_sidebar()
                 mw.show_toast(mw.success_qr_message)
         except Exception as e:
             logging.error("Error generating or saving WiFi QR: %s", e, exc_info=True)

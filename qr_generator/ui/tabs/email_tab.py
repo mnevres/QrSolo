@@ -11,8 +11,14 @@ class EmailTab(QWidget):
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
+        self.editing_email_id = None
 
-        layout = QVBoxLayout(self)
+        self.tab_hlayout = QHBoxLayout(self)
+        self.tab_hlayout.setContentsMargins(0, 0, 0, 0)
+        self.tab_hlayout.setSpacing(0)
+
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
         form_layout = QFormLayout()
@@ -49,12 +55,26 @@ class EmailTab(QWidget):
         radio_layout.addStretch()
         export_section.addLayout(radio_layout)
 
+        email_buttons_layout = QHBoxLayout()
         self.generate_button_email = QPushButton('Save Email QR')
         self.generate_button_email.clicked.connect(self.generate_qr_code)
-        export_section.addWidget(self.generate_button_email)
+        email_buttons_layout.addWidget(self.generate_button_email, stretch=1)
+
+        self.clear_email_btn = QPushButton('New Email')
+        self.clear_email_btn.setObjectName("clear_vcard_btn")
+        self.clear_email_btn.clicked.connect(self.clear_email_form)
+        email_buttons_layout.addWidget(self.clear_email_btn)
+
+        export_section.addLayout(email_buttons_layout)
 
         layout.addLayout(export_section)
         layout.addStretch()
+
+        self.tab_hlayout.addWidget(content_widget, stretch=1)
+
+        self.to_input.textChanged.connect(self.main_window.update_preview)
+        self.subject_input.textChanged.connect(self.main_window.update_preview)
+        self.message_input.textChanged.connect(self.main_window.update_preview)
 
     def update_language_ui(self, t):
         self.to_label.setText(t.get('email_to', 'Email Address'))
@@ -62,6 +82,7 @@ class EmailTab(QWidget):
         self.message_label.setText(t.get('email_message', 'Message'))
         self.format_label_email.setText(t.get('export_format', 'Select Format:'))
         self.generate_button_email.setText(t.get('generate_button_email', 'Save Email QR'))
+        self.clear_email_btn.setText(t.get('new_email_button', 'New Email'))
 
     def build_email_uri(self):
         to = self.to_input.text().strip()
@@ -77,6 +98,20 @@ class EmailTab(QWidget):
         if params:
             uri += "?" + "&".join(params)
         return uri
+
+    def clear_email_form(self):
+        self.editing_email_id = None
+        self.to_input.clear()
+        self.subject_input.clear()
+        self.message_input.clear()
+        self.main_window.update_preview()
+
+    def load_email(self, email_id, to_address, subject, message):
+        self.editing_email_id = email_id
+        self.to_input.setText(to_address)
+        self.subject_input.setText(subject)
+        self.message_input.setText(message)
+        self.main_window.update_preview()
 
     def generate_qr_code(self):
         mw = self.main_window
@@ -96,6 +131,14 @@ class EmailTab(QWidget):
             file_path, _ = QFileDialog.getSaveFileName(self, "Save Email QR", filename, file_type)
             if file_path:
                 mw.qr_img.save(file_path)
+                subject = self.subject_input.text().strip()
+                message = self.message_input.text().strip()
+                if self.editing_email_id is not None:
+                    mw.db.update_email(self.editing_email_id, to, subject, message)
+                else:
+                    self.editing_email_id = mw.db.add_email(to, subject, message)
+                mw.archive_window.load_archive()
+                mw.populate_sidebar()
                 mw.show_toast(mw.success_qr_message)
         except Exception as e:
             logging.error("Error generating or saving Email QR: %s", e, exc_info=True)
