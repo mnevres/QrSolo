@@ -2,7 +2,7 @@
   <img src="icon.png" alt="QRSolo icon" width="128" />
 </p>
 
-<h1 align="center">QRSolo</h1>
+<h1 align="center">QrSolo</h1>
 
 <p align="center">A free, fully offline QR code generator for Windows.</p>
 
