@@ -36,8 +36,8 @@
 **Kaynak koddan çalıştırma:**
 
 ```bash
-git clone https://github.com/mnevres/qrsolo.git
-cd qrsolo
+git clone https://github.com/mnevres/QrSolo.git
+cd QrSolo
 pip install -r requirements.txt
 python qr_code_generator.py
 ```
