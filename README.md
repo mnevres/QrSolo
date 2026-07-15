@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icon.png" alt="QRSolo icon" width="128" />
+  <img src="icon.png" alt="QrSolo icon" width="128" />
 </p>
 
 <h1 align="center">QrSolo</h1>
@@ -16,7 +16,7 @@
 
 ## English
 
-**QRSolo** is a free desktop application for generating QR codes — for links, contact cards, Wi-Fi networks, or emails — in PNG or SVG format. Everything runs locally: there's no account, no internet connection required, no tracking, and no "dynamic" QR codes that phone home. What you generate is a static, standard QR code that works forever, with nothing running on a server anywhere.
+**QrSolo** is a free desktop application for generating QR codes — for links, contact cards, Wi-Fi networks, or emails — in PNG or SVG format. Everything runs locally: there's no account, no internet connection required, no tracking, and no "dynamic" QR codes that phone home. What you generate is a static, standard QR code that works forever, with nothing running on a server anywhere.
 
 ### ✨ Features
 
